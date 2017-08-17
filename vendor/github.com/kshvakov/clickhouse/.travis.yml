@@ -1,0 +1,18 @@
+sudo: required
+language: go
+go: 
+  - 1.7
+  - 1.8
+services:
+  - docker
+install:
+  - go get github.com/mattn/goveralls
+  - go get golang.org/x/tools/cmd/cover
+  - go get github.com/stretchr/testify/assert
+before_install:
+  - docker pull yandex/clickhouse-server
+  - docker run -d -p 127.0.0.1:9000:9000 --name some-clickhouse-server --ulimit nofile=262144:262144 yandex/clickhouse-server:1.1.54159
+  - docker ps -a
+script:
+  - go test -v -race -covermode=count -coverprofile=coverage.out .
+  - goveralls -coverprofile=coverage.out -service travis-ci -repotoken $COVERALLS_TOKEN

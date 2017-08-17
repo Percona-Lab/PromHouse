@@ -1,0 +1,21 @@
+dist: trusty
+sudo: required
+language: go
+
+go:
+  - 1.8.x
+  - tip
+
+services:
+  - docker
+
+before_script:
+  - docker --version
+  - docker-compose --version
+  - docker-compose -f misc/docker-compose.yml -p promhouse up -d
+
+script:
+  - make
+
+after_success:
+  - bash <(curl -s https://codecov.io/bash)

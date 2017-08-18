@@ -4,7 +4,7 @@ language: go
 
 go:
   - 1.8.x
-  - tip
+  - master
 
 services:
   - docker
@@ -15,7 +15,7 @@ before_script:
   - docker-compose -f misc/docker-compose.yml -p promhouse up -d
 
 script:
-  - make
+  - make init cover
 
 after_success:
-  - bash <(curl -s https://codecov.io/bash)
+  - bash <(curl -s https://codecov.io/bash) -X fix

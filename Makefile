@@ -2,6 +2,9 @@ all: test
 
 PACKAGES := $(shell go list ./... | grep -v vendor)
 
+init:
+	go get -u github.com/AlekSi/gocoverutil
+
 install:
 	go install -v $(PACKAGES)
 
@@ -19,6 +22,9 @@ run: install
 
 run-race: install-race
 	promhouse
+
+cover: install
+	gocoverutil test -v $(PACKAGES)
 
 env-run:
 	docker-compose -f misc/docker-compose.yml -p promhouse up

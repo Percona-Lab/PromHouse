@@ -1,9 +1,13 @@
 package util
 
-// MarshalLabels marshals Prometheus labels into JSON.
-// It is significantly fast then json.Marshal.
+import (
+	"github.com/prometheus/common/model"
+)
+
+// MarshalMetric marshals Prometheus metric into JSON.
+// It is significantly faster then json.Marshal.
 // It is compatible with ClickHouse JSON functions: https://clickhouse.yandex/docs/en/functions/json_functions.html
-func MarshalLabels(m map[string]string) []byte {
+func MarshalMetric(m model.Metric) []byte {
 	b := make([]byte, 0, 128)
 	b = append(b, '{')
 	for k, v := range m {

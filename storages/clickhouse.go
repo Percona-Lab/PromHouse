@@ -21,6 +21,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
 
 	_ "github.com/kshvakov/clickhouse" // register SQL driver
 	"github.com/prometheus/client_golang/prometheus"
@@ -28,6 +29,11 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/Percona-Lab/PromHouse/util"
+)
+
+const (
+	namespace = "promhouse"
+	subsystem = "clickhouse"
 )
 
 // ClickHouse implements storage interface for the ClickHouse.
@@ -38,7 +44,14 @@ type ClickHouse struct {
 	// labels   []string
 
 	mSamplesCurrent prometheus.Gauge
-	mLabels         *prometheus.CounterVec
+
+	mReads      prometheus.Summary
+	mReadErrors *prometheus.CounterVec
+
+	mWrites         prometheus.Summary
+	mWriteErrors    *prometheus.CounterVec
+	mWrittenLabels  *prometheus.CounterVec
+	mWrittenSamples prometheus.Counter
 }
 
 func NewClickHouse(dsn string, database string, init bool) (*ClickHouse, error) {
@@ -83,23 +96,62 @@ func NewClickHouse(dsn string, database string, init bool) (*ClickHouse, error) 
 		// labels:   labels,
 
 		mSamplesCurrent: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "promhouse",
-			Subsystem: "clickhouse",
+			Namespace: namespace,
+			Subsystem: subsystem,
 			Name:      "samples_current",
 			Help:      "Current number of stored samples.",
 		}),
-		mLabels: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: "promhouse",
-			Subsystem: "clickhouse",
-			Name:      "labels",
-			Help:      "Written labels by name.",
+
+		mReads: prometheus.NewSummary(prometheus.SummaryOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "reads",
+			Help:      "Durations of successful reads.",
+		}),
+		mReadErrors: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "read_errors",
+			Help:      "Number of read errors by type: canceled, other.",
+		}, []string{"type"}),
+
+		mWrites: prometheus.NewSummary(prometheus.SummaryOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "writes",
+			Help:      "Durations of committed writes.",
+		}),
+		mWriteErrors: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "write_errors",
+			Help:      "Number of write errors by type: canceled, other.",
+		}, []string{"type"}),
+		mWrittenLabels: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "written_labels",
+			Help:      "Number of written labels by name.",
 		}, []string{"name"}),
+		mWrittenSamples: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "written_samples",
+			Help:      "Number of written samples.",
+		}),
 	}, nil
 }
 
 func (ch *ClickHouse) Describe(c chan<- *prometheus.Desc) {
 	ch.mSamplesCurrent.Describe(c)
-	ch.mLabels.Describe(c)
+
+	ch.mReads.Describe(c)
+	ch.mReadErrors.Describe(c)
+
+	ch.mWrites.Describe(c)
+	ch.mWriteErrors.Describe(c)
+	ch.mWrittenLabels.Describe(c)
+	ch.mWrittenSamples.Describe(c)
 }
 
 func (ch *ClickHouse) Collect(c chan<- prometheus.Metric) {
@@ -109,15 +161,35 @@ func (ch *ClickHouse) Collect(c chan<- prometheus.Metric) {
 		ch.l.Error(err)
 		return
 	}
-
 	ch.mSamplesCurrent.Set(float64(count))
 
 	ch.mSamplesCurrent.Collect(c)
-	ch.mLabels.Collect(c)
+
+	ch.mReads.Collect(c)
+	ch.mReadErrors.Collect(c)
+
+	ch.mWrites.Collect(c)
+	ch.mWriteErrors.Collect(c)
+	ch.mWrittenLabels.Collect(c)
+	ch.mWrittenSamples.Collect(c)
 }
 
-func (ch *ClickHouse) Read(ctx context.Context, queries []Query) ([]model.Matrix, error) {
-	res := make([]model.Matrix, len(queries))
+func (ch *ClickHouse) Read(ctx context.Context, queries []Query) (data []model.Matrix, err error) {
+	start := time.Now()
+	defer func() {
+		if err == nil {
+			ch.mReads.Observe(time.Since(start).Seconds())
+			return
+		}
+
+		t := "other"
+		if err == context.Canceled {
+			t = "canceled"
+		}
+		ch.mReadErrors.WithLabelValues(t).Inc()
+	}()
+
+	data = make([]model.Matrix, len(queries))
 	for i, q := range queries {
 		query := fmt.Sprintf("SELECT __labels__, __fingerprint__, __ts__, __value__ FROM %s.samples WHERE __ts__ >= ? AND __ts__ <= ?", ch.database)
 		args := []interface{}{int64(q.Start), int64(q.End)}
@@ -140,14 +212,15 @@ func (ch *ClickHouse) Read(ctx context.Context, queries []Query) ([]model.Matrix
 				query += fmt.Sprintf(" AND NOT match(visitParamExtractString(__labels__, '%s'), ?)", matcher.Name)
 				args = append(args, "^(?:"+matcher.Value+")$")
 			default:
-				panic("unknown match type")
+				ch.l.Panicf("unexpected match type: %d", matcher.Type)
 			}
 		}
 		query += " ORDER BY __fingerprint__, __ts__"
 
-		rows, err := ch.db.Query(query, args...)
+		var rows *sql.Rows
+		rows, err = ch.db.Query(query, args...)
 		if err != nil {
-			return nil, err
+			return
 		}
 
 		var ss *model.SampleStream
@@ -157,17 +230,17 @@ func (ch *ClickHouse) Read(ctx context.Context, queries []Query) ([]model.Matrix
 		var value float64
 		for rows.Next() {
 			if err = rows.Scan(&b, &fingerprint, &ts, &value); err != nil {
-				return nil, err
+				return
 			}
 			if fingerprint != prevFingerprint {
 				prevFingerprint = fingerprint
 				if ss != nil {
-					res[i] = append(res[i], ss)
+					data[i] = append(data[i], ss)
 				}
 
 				var ls model.LabelSet
 				if err = ls.UnmarshalJSON(b); err != nil {
-					return nil, err
+					return
 				}
 				ss = &model.SampleStream{
 					Metric: model.Metric(ls),
@@ -179,31 +252,40 @@ func (ch *ClickHouse) Read(ctx context.Context, queries []Query) ([]model.Matrix
 			})
 		}
 		if err = rows.Close(); err != nil {
-			return nil, err
+			return
 		}
 		if ss != nil {
-			res[i] = append(res[i], ss)
+			data[i] = append(data[i], ss)
 		}
 	}
 
-	return res, nil
+	return
 }
 
 func (ch *ClickHouse) Write(ctx context.Context, data model.Matrix) (err error) {
-	var committed bool
+	start := time.Now()
 	var tx *sql.Tx
+	defer func() {
+		if err == nil {
+			ch.mWrites.Observe(time.Since(start).Seconds())
+			return
+		}
+
+		if tx != nil {
+			tx.Rollback()
+		}
+
+		t := "other"
+		if err == context.Canceled {
+			t = "canceled"
+		}
+		ch.mWriteErrors.WithLabelValues(t).Inc()
+	}()
+
 	tx, err = ch.db.BeginTx(ctx, nil)
 	if err != nil {
 		return
 	}
-	defer func() {
-		if !committed {
-			e := tx.Rollback()
-			if err == nil {
-				err = e
-			}
-		}
-	}()
 
 	// columns := 4 + len(ch.labels)
 	const columns = 5
@@ -233,7 +315,7 @@ func (ch *ClickHouse) Write(ctx context.Context, data model.Matrix) (err error) 
 			// 	args[0] = string(v)
 			// } else {
 			labels[string(n)] = string(v)
-			ch.mLabels.WithLabelValues(string(n)).Inc()
+			ch.mWrittenLabels.WithLabelValues(string(n)).Inc()
 		}
 		args[0] = util.MarshalLabels(labels)
 		args[1] = uint64(ss.Metric.Fingerprint())
@@ -256,7 +338,7 @@ func (ch *ClickHouse) Write(ctx context.Context, data model.Matrix) (err error) 
 	if err = tx.Commit(); err != nil {
 		return
 	}
-	committed = true
+	ch.mWrittenSamples.Add(float64(len(data)))
 	return
 }
 

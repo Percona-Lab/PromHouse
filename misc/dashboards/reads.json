@@ -38,11 +38,11 @@
   "hideControls": false,
   "id": null,
   "links": [],
-  "refresh": "5s",
+  "refresh": "30s",
   "rows": [
     {
       "collapse": false,
-      "height": "250px",
+      "height": 250,
       "panels": [
         {
           "aliasColors": {},
@@ -51,7 +51,7 @@
           "dashes": false,
           "datasource": "${DS_PROMETHEUS}",
           "fill": 1,
-          "id": 1,
+          "id": 6,
           "legend": {
             "avg": false,
             "current": false,
@@ -71,29 +71,114 @@
           "renderer": "flot",
           "seriesOverrides": [
             {
-              "alias": "Delta",
+              "alias": "Write canceled",
+              "yaxis": 2
+            },
+            {
+              "alias": "Write other",
+              "yaxis": 2
+            },
+            {
+              "alias": "Samples",
               "yaxis": 2
             }
           ],
           "spaceLength": 10,
-          "span": 12,
+          "span": 6,
           "stack": false,
           "steppedLine": false,
           "targets": [
             {
-              "expr": "promhouse_clickhouse_samples_current",
+              "expr": "rate(promhouse_clickhouse_reads_count[1m])",
               "format": "time_series",
               "intervalFactor": 2,
-              "legendFormat": "Current",
+              "legendFormat": "Requests",
               "metric": "",
               "refId": "A",
-              "step": 2
+              "step": 4
             }
           ],
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "Samples",
+          "title": "Reads",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "rps",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "wps",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": "0",
+              "show": true
+            }
+          ]
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "${DS_PROMETHEUS}",
+          "fill": 1,
+          "id": 7,
+          "legend": {
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "show": true,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "links": [],
+          "nullPointMode": "null",
+          "percentage": false,
+          "pointradius": 5,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "spaceLength": 10,
+          "span": 6,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "expr": "promhouse_clickhouse_read_errors",
+              "format": "time_series",
+              "intervalFactor": 2,
+              "legendFormat": "{{ type }}",
+              "metric": "",
+              "refId": "A",
+              "step": 4
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "Read errors",
           "tooltip": {
             "shared": true,
             "sort": 0,
@@ -113,7 +198,7 @@
               "label": null,
               "logBase": 1,
               "max": null,
-              "min": null,
+              "min": "0",
               "show": true
             },
             {
@@ -145,7 +230,7 @@
           "dashes": false,
           "datasource": "${DS_PROMETHEUS}",
           "fill": 1,
-          "id": 2,
+          "id": 4,
           "legend": {
             "avg": false,
             "current": false,
@@ -170,11 +255,11 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(promhouse_clickhouse_labels[1m]) > 100",
+              "expr": "promhouse_clickhouse_reads",
               "format": "time_series",
               "intervalFactor": 2,
-              "legendFormat": "{{ name }}",
-              "metric": "promhouse_clickhouse_labels",
+              "legendFormat": "{{ quantile }}",
+              "metric": "",
               "refId": "A",
               "step": 2
             }
@@ -182,7 +267,7 @@
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "Popular labels",
+          "title": "Reads durations",
           "tooltip": {
             "shared": true,
             "sort": 0,
@@ -198,108 +283,7 @@
           },
           "yaxes": [
             {
-              "format": "wps",
-              "label": null,
-              "logBase": 1,
-              "max": null,
-              "min": null,
-              "show": true
-            },
-            {
-              "format": "short",
-              "label": null,
-              "logBase": 1,
-              "max": null,
-              "min": null,
-              "show": true
-            }
-          ]
-        }
-      ],
-      "repeat": null,
-      "repeatIteration": null,
-      "repeatRowId": null,
-      "showTitle": false,
-      "title": "Dashboard Row",
-      "titleSize": "h6"
-    },
-    {
-      "collapse": false,
-      "height": 250,
-      "panels": [
-        {
-          "aliasColors": {},
-          "bars": false,
-          "dashLength": 10,
-          "dashes": false,
-          "datasource": "${DS_PROMETHEUS}",
-          "fill": 1,
-          "id": 3,
-          "legend": {
-            "avg": false,
-            "current": false,
-            "max": false,
-            "min": false,
-            "show": true,
-            "total": false,
-            "values": false
-          },
-          "lines": true,
-          "linewidth": 1,
-          "links": [],
-          "nullPointMode": "null",
-          "percentage": false,
-          "pointradius": 5,
-          "points": false,
-          "renderer": "flot",
-          "seriesOverrides": [
-            {
-              "alias": "Parts",
-              "yaxis": 2
-            }
-          ],
-          "spaceLength": 10,
-          "span": 12,
-          "stack": false,
-          "steppedLine": false,
-          "targets": [
-            {
-              "expr": "clickhouse_table_parts_bytes{table=\"samples\"}",
-              "format": "time_series",
-              "intervalFactor": 2,
-              "legendFormat": "Size",
-              "refId": "A",
-              "step": 2
-            },
-            {
-              "expr": "clickhouse_table_parts_count{table=\"samples\"}",
-              "format": "time_series",
-              "intervalFactor": 2,
-              "legendFormat": "Parts",
-              "refId": "B",
-              "step": 2
-            }
-          ],
-          "thresholds": [],
-          "timeFrom": null,
-          "timeShift": null,
-          "title": "ClickHouse samples table",
-          "tooltip": {
-            "shared": true,
-            "sort": 0,
-            "value_type": "individual"
-          },
-          "type": "graph",
-          "xaxis": {
-            "buckets": null,
-            "mode": "time",
-            "name": null,
-            "show": true,
-            "values": []
-          },
-          "yaxes": [
-            {
-              "format": "decbytes",
+              "format": "s",
               "label": null,
               "logBase": 1,
               "max": null,
@@ -361,6 +345,5 @@
     ]
   },
   "timezone": "",
-  "title": "PromHouse",
-  "version": 0
+  "title": "PromHouse Reads"
 }

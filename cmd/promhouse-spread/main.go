@@ -163,9 +163,9 @@ func main() {
 	var wg sync.WaitGroup
 	for i := 0; i < *writersF; i++ {
 		wg.Add(1)
-		defer wg.Done()
 
 		go func(id int) {
+			defer wg.Done()
 			nextReport := time.Now()
 
 			for req := range requests {

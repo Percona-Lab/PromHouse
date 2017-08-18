@@ -30,6 +30,7 @@ import (
 	"github.com/Percona-Lab/PromHouse/util"
 )
 
+// ClickHouse implements storage interface for the ClickHouse.
 type ClickHouse struct {
 	db       *sql.DB
 	l        *logrus.Entry

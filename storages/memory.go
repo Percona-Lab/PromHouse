@@ -25,6 +25,7 @@ import (
 	"github.com/prometheus/common/model"
 )
 
+// Memory is a functional dummy storage for testing.
 type Memory struct {
 	metrics []model.Metric
 	samples map[model.Fingerprint][]model.SamplePair

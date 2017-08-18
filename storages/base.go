@@ -26,12 +26,19 @@ import (
 	"github.com/prometheus/common/model"
 )
 
+// Storage represents generic storage.
 type Storage interface {
+	// Read runs queries in the storage and returns the same amount of matrixes.
+	// Event if they are empty, they must be present in the returned slice.
 	Read(context.Context, []Query) ([]model.Matrix, error)
+
+	// Write puts data into storage.
 	Write(context.Context, model.Matrix) error
+
 	prometheus.Collector
 }
 
+// Query represents query against stored data.
 type Query struct {
 	Start    model.Time
 	End      model.Time

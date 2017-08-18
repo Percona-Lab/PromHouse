@@ -89,7 +89,7 @@ func NewClickHouse(dsn string, database string, init bool) (*ClickHouse, error) 
 		}
 	}
 
-	return &ClickHouse{
+	ch := &ClickHouse{
 		db:       db,
 		l:        logrus.WithField("component", "clickhouse"),
 		database: database,
@@ -139,7 +139,14 @@ func NewClickHouse(dsn string, database string, init bool) (*ClickHouse, error) 
 			Name:      "written_samples",
 			Help:      "Number of written samples.",
 		}),
-	}, nil
+	}
+
+	ch.mReadErrors.WithLabelValues("canceled").Set(0)
+	ch.mReadErrors.WithLabelValues("other").Set(0)
+	ch.mWriteErrors.WithLabelValues("canceled").Set(0)
+	ch.mWriteErrors.WithLabelValues("other").Set(0)
+
+	return ch, nil
 }
 
 func (ch *ClickHouse) Describe(c chan<- *prometheus.Desc) {

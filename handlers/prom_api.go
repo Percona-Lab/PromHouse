@@ -17,7 +17,6 @@
 package handlers
 
 import (
-	"fmt"
 	"io/ioutil"
 	"net/http"
 
@@ -35,7 +34,7 @@ type PromAPI struct {
 	Logger  *logrus.Entry
 }
 
-func readPB(req *http.Request, pb proto.Message) error {
+func readPB(req *http.Request, pb proto.Unmarshaler) error {
 	compressed, err := ioutil.ReadAll(req.Body)
 	if err != nil {
 		return err
@@ -44,16 +43,10 @@ func readPB(req *http.Request, pb proto.Message) error {
 	if err != nil {
 		return err
 	}
-	return proto.Unmarshal(b, pb)
+	return pb.Unmarshal(b)
 }
 
-func (p *PromAPI) Read(rw http.ResponseWriter, req *http.Request) error {
-	var request prompb.ReadRequest
-	if err := readPB(req, &request); err != nil {
-		return err
-	}
-
-	// convert to query
+func (p *PromAPI) convertReadRequest(request *prompb.ReadRequest) []storages.Query {
 	queries := make([]storages.Query, len(request.Queries))
 	for i, rq := range request.Queries {
 		empty := true
@@ -74,7 +67,7 @@ func (p *PromAPI) Read(rw http.ResponseWriter, req *http.Request) error {
 			case prompb.LabelMatcher_NRE:
 				t = storages.MatchNotRegexp
 			default:
-				return fmt.Errorf("unexpected matcher %d", m.Type)
+				p.Logger.Panicf("expectation failed: unexpected matcher %d", m.Type)
 			}
 
 			q.Matchers[j] = storages.Matcher{
@@ -92,20 +85,13 @@ func (p *PromAPI) Read(rw http.ResponseWriter, req *http.Request) error {
 		}
 		queries[i] = q
 	}
+	return queries
+}
 
-	// read from storage
-	p.Logger.Infof("Queries: %s", queries)
-	data, err := p.Storage.Read(req.Context(), queries)
-	if err != nil {
-		return err
-	}
-	p.Logger.Debugf("Response data:\n%s", data)
-
-	// convert to response
-	response := prompb.ReadResponse{
+func (p *PromAPI) convertMatrixes(data []model.Matrix) (response *prompb.ReadResponse, series, samples int) {
+	response = &prompb.ReadResponse{
 		Results: make([]*prompb.QueryResult, len(data)),
 	}
-	var series, samples int
 	for i, m := range data {
 		qr := &prompb.QueryResult{
 			Timeseries: make([]*prompb.TimeSeries, len(m)),
@@ -133,10 +119,31 @@ func (p *PromAPI) Read(rw http.ResponseWriter, req *http.Request) error {
 		}
 		response.Results[i] = qr
 	}
+	return
+}
+
+func (p *PromAPI) Read(rw http.ResponseWriter, req *http.Request) error {
+	var request prompb.ReadRequest
+	if err := readPB(req, &request); err != nil {
+		return err
+	}
+
+	queries := p.convertReadRequest(&request)
+
+	// read from storage
+	p.Logger.Infof("Queries: %s", queries)
+	data, err := p.Storage.Read(req.Context(), queries)
+	if err != nil {
+		return err
+	}
+	p.Logger.Debugf("Response data:\n%s", data)
+
+	response, series, samples := p.convertMatrixes(data)
 	p.Logger.Infof("Response: %d matrixes, %d time series, %d samples.", len(data), series, samples)
 
 	// marshal, encode and write response
-	b, err := proto.Marshal(&response)
+	// TODO use MarshalTo with sync.Pool?
+	b, err := response.Marshal()
 	if err != nil {
 		return err
 	}
@@ -147,15 +154,8 @@ func (p *PromAPI) Read(rw http.ResponseWriter, req *http.Request) error {
 	return err
 }
 
-func (p *PromAPI) Write(rw http.ResponseWriter, req *http.Request) error {
-	var request prompb.WriteRequest
-	if err := readPB(req, &request); err != nil {
-		return err
-	}
-
-	// convert to matrix
-	var samples int
-	data := make(model.Matrix, len(request.Timeseries))
+func (p *PromAPI) convertWriteRequest(request *prompb.WriteRequest) (data model.Matrix, samples int) {
+	data = make(model.Matrix, len(request.Timeseries))
 	for i, ts := range request.Timeseries {
 		ss := &model.SampleStream{
 			Metric: make(model.Metric, len(ts.Labels)),
@@ -165,14 +165,14 @@ func (p *PromAPI) Write(rw http.ResponseWriter, req *http.Request) error {
 			n := model.LabelName(l.Name)
 			v := model.LabelValue(l.Value)
 			if !n.IsValid() {
-				return fmt.Errorf("invalid label name %q", n)
+				p.Logger.Panicf("expectation failed: invalid label name %q", n)
 			}
 			if n == model.MetricNameLabel {
 				if !model.IsValidMetricName(v) {
-					return fmt.Errorf("invalid metric name %q", v)
+					p.Logger.Panicf("invalid metric name %q", v)
 				}
 			} else if !v.IsValid() {
-				return fmt.Errorf("invalid value %q for label %s", v, n)
+				p.Logger.Panicf("invalid value %q for label %s", v, n)
 			}
 			ss.Metric[n] = v
 		}
@@ -185,8 +185,17 @@ func (p *PromAPI) Write(rw http.ResponseWriter, req *http.Request) error {
 		}
 		data[i] = ss
 	}
+	return
+}
 
-	// write to storage
+func (p *PromAPI) Write(rw http.ResponseWriter, req *http.Request) error {
+	var request prompb.WriteRequest
+	if err := readPB(req, &request); err != nil {
+		return err
+	}
+
+	data, samples := p.convertWriteRequest(&request)
+
 	p.Logger.Infof("Writing %d time series, %d samples.", len(data), samples)
 	p.Logger.Debugf("Writing data:\n%s", data)
 	return p.Storage.Write(req.Context(), data)

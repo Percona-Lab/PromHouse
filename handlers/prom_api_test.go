@@ -33,9 +33,10 @@ import (
 	"github.com/Percona-Lab/PromHouse/storages"
 )
 
-func getData(t require.TestingT) *bytes.Reader {
-	start := int64(model.TimeFromUnixNano(time.Now().UnixNano()))
-	request := &prompb.WriteRequest{
+func getWriteRequest() *prompb.WriteRequest {
+	start := model.Now().Add(-6 * time.Second)
+
+	return &prompb.WriteRequest{
 		Timeseries: []*prompb.TimeSeries{
 			{
 				Labels: []*prompb.Label{
@@ -44,11 +45,11 @@ func getData(t require.TestingT) *bytes.Reader {
 					{Name: "handler", Value: "query"},
 				},
 				Samples: []*prompb.Sample{
-					{Value: 13, Timestamp: start},
-					{Value: 14, Timestamp: start + 1},
-					{Value: 14, Timestamp: start + 2},
-					{Value: 14, Timestamp: start + 3},
-					{Value: 15, Timestamp: start + 4},
+					{Value: 13, Timestamp: int64(start)},
+					{Value: 14, Timestamp: int64(start.Add(1 * time.Second))},
+					{Value: 14, Timestamp: int64(start.Add(2 * time.Second))},
+					{Value: 14, Timestamp: int64(start.Add(3 * time.Second))},
+					{Value: 15, Timestamp: int64(start.Add(4 * time.Second))},
 				},
 			},
 			{
@@ -58,11 +59,11 @@ func getData(t require.TestingT) *bytes.Reader {
 					{Name: "handler", Value: "query_range"},
 				},
 				Samples: []*prompb.Sample{
-					{Value: 9, Timestamp: start},
-					{Value: 9, Timestamp: start + 1},
-					{Value: 9, Timestamp: start + 2},
-					{Value: 11, Timestamp: start + 3},
-					{Value: 11, Timestamp: start + 4},
+					{Value: 9, Timestamp: int64(start)},
+					{Value: 9, Timestamp: int64(start.Add(1 * time.Second))},
+					{Value: 9, Timestamp: int64(start.Add(2 * time.Second))},
+					{Value: 11, Timestamp: int64(start.Add(3 * time.Second))},
+					{Value: 11, Timestamp: int64(start.Add(4 * time.Second))},
 				},
 			},
 			{
@@ -72,18 +73,15 @@ func getData(t require.TestingT) *bytes.Reader {
 					{Name: "handler", Value: "prometheus"},
 				},
 				Samples: []*prompb.Sample{
-					{Value: 591, Timestamp: start},
-					{Value: 592, Timestamp: start + 1},
-					{Value: 593, Timestamp: start + 2},
-					{Value: 594, Timestamp: start + 3},
-					{Value: 595, Timestamp: start + 4},
+					{Value: 591, Timestamp: int64(start)},
+					{Value: 592, Timestamp: int64(start.Add(1 * time.Second))},
+					{Value: 593, Timestamp: int64(start.Add(2 * time.Second))},
+					{Value: 594, Timestamp: int64(start.Add(3 * time.Second))},
+					{Value: 595, Timestamp: int64(start.Add(4 * time.Second))},
 				},
 			},
 		},
 	}
-	b, err := proto.Marshal(request)
-	require.NoError(t, err)
-	return bytes.NewReader(snappy.Encode(nil, b))
 }
 
 func TestWrite(t *testing.T) {
@@ -94,7 +92,10 @@ func TestWrite(t *testing.T) {
 		}),
 	}
 
-	req, err := http.NewRequest("", "", getData(t))
+	data, err := proto.Marshal(getWriteRequest())
+	require.NoError(t, err)
+	r := bytes.NewReader(snappy.Encode(nil, data))
+	req, err := http.NewRequest("", "", r)
 	require.NoError(t, err)
 	require.NoError(t, h.Write(nil, req))
 }
@@ -107,7 +108,9 @@ func BenchmarkWrite(b *testing.B) {
 		}),
 	}
 
-	r := getData(b)
+	data, err := proto.Marshal(getWriteRequest())
+	require.NoError(b, err)
+	r := bytes.NewReader(snappy.Encode(nil, data))
 	req, err := http.NewRequest("", "", r)
 	require.NoError(b, err)
 

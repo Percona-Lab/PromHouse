@@ -24,16 +24,17 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/prometheus/prompb"
 )
 
 // Storage represents generic storage.
 type Storage interface {
 	// Read runs queries in the storage and returns the same amount of matrixes.
 	// Event if they are empty, they must be present in the returned slice.
-	Read(context.Context, []Query) ([]model.Matrix, error)
+	Read(context.Context, []Query) (*prompb.ReadResponse, error)
 
 	// Write puts data into storage.
-	Write(context.Context, model.Matrix) error
+	Write(context.Context, *prompb.WriteRequest) error
 
 	prometheus.Collector
 }

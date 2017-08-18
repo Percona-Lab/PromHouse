@@ -20,7 +20,7 @@ import (
 	"context"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/model"
+	"github.com/prometheus/prometheus/prompb"
 )
 
 // Blackhole is a non-functional dummy storage for testing.
@@ -36,11 +36,11 @@ func (m *Blackhole) Describe(c chan<- *prometheus.Desc) {
 func (m *Blackhole) Collect(c chan<- prometheus.Metric) {
 }
 
-func (m *Blackhole) Read(ctx context.Context, queries []Query) ([]model.Matrix, error) {
+func (m *Blackhole) Read(ctx context.Context, queries []Query) (*prompb.ReadResponse, error) {
 	return nil, nil
 }
 
-func (m *Blackhole) Write(ctx context.Context, data model.Matrix) error {
+func (m *Blackhole) Write(ctx context.Context, data *prompb.WriteRequest) error {
 	return nil
 }
 

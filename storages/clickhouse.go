@@ -190,14 +190,14 @@ func (ch *ClickHouse) Read(ctx context.Context, queries []Query) ([]model.Matrix
 }
 
 func (ch *ClickHouse) Write(ctx context.Context, data model.Matrix) (err error) {
-	var commited bool
+	var committed bool
 	var tx *sql.Tx
 	tx, err = ch.db.BeginTx(ctx, nil)
 	if err != nil {
 		return
 	}
 	defer func() {
-		if !commited {
+		if !committed {
 			e := tx.Rollback()
 			if err == nil {
 				err = e
@@ -256,7 +256,7 @@ func (ch *ClickHouse) Write(ctx context.Context, data model.Matrix) (err error) 
 	if err = tx.Commit(); err != nil {
 		return
 	}
-	commited = true
+	committed = true
 	return
 }
 

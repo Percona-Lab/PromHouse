@@ -49,7 +49,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${Prometheus}",
+          "datasource": "Prometheus",
           "fill": 1,
           "id": 1,
           "legend": {
@@ -143,7 +143,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "${Prometheus}",
+          "datasource": "Prometheus",
           "fill": 1,
           "id": 3,
           "legend": {

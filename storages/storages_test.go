@@ -18,7 +18,6 @@ package storages
 
 import (
 	"context"
-	"sort"
 	"testing"
 	"time"
 
@@ -81,8 +80,8 @@ func getData() *prompb.WriteRequest {
 
 func TestStorages(t *testing.T) {
 	for storageName, newStorage := range map[string]func() (Storage, error){
-		"Memory": func() (Storage, error) { return NewMemory(), nil },
-		// "ClickHouse": func() (Storage, error) { return NewClickHouse("tcp://127.0.0.1:9000", "prometheus_test", true) },
+		"Memory":     func() (Storage, error) { return NewMemory(), nil },
+		"ClickHouse": func() (Storage, error) { return NewClickHouse("tcp://127.0.0.1:9000", "prometheus_test", true) },
 	} {
 		t.Run(storageName, func(t *testing.T) {
 			// Label matchers that match empty label values also select all time series that do not have the specific label set at all.
@@ -125,7 +124,7 @@ func TestStorages(t *testing.T) {
 						require.Len(t, data.Results, 1)
 						require.Len(t, data.Results[0].Timeseries, 3)
 						for i, ts := range data.Results[0].Timeseries {
-							sort.Slice(ts.Labels, func(i, j int) bool { return ts.Labels[i].Name < ts.Labels[j].Name })
+							sortLabels(ts.Labels)
 							assert.Equal(t, storedData.Timeseries[i], ts)
 						}
 					})
@@ -202,7 +201,7 @@ func TestStorages(t *testing.T) {
 						require.Len(t, data.Results, 1)
 						require.Len(t, data.Results[0].Timeseries, 3)
 						for i, ts := range data.Results[0].Timeseries {
-							sort.Slice(ts.Labels, func(i, j int) bool { return ts.Labels[i].Name < ts.Labels[j].Name })
+							sortLabels(ts.Labels)
 							assert.Equal(t, storedData.Timeseries[i], ts)
 						}
 					})
@@ -277,10 +276,10 @@ func TestStorages(t *testing.T) {
 				data, err := storage.Read(context.Background(), []Query{q})
 				assert.NoError(t, err)
 				require.Len(t, data.Results, 1)
-				// sort.Slice(data.Results[0].Timeseries, func(i, j int) bool { return data.Results[0].Timeseries[i].La < data.Results[0].Timeseries[j].Name })
 				require.Len(t, data.Results[0].Timeseries, len(storedData.Timeseries))
+				sortTimeSeries(data.Results[0].Timeseries)
 				for i, ts := range data.Results[0].Timeseries {
-					sort.Slice(ts.Labels, func(i, j int) bool { return ts.Labels[i].Name < ts.Labels[j].Name })
+					sortLabels(ts.Labels)
 					assert.Equal(t, storedData.Timeseries[i], ts)
 				}
 			})

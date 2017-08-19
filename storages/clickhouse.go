@@ -26,6 +26,7 @@ import (
 	_ "github.com/kshvakov/clickhouse" // register SQL driver
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/prometheus/prompb"
 	"github.com/sirupsen/logrus"
 
 	"github.com/Percona-Lab/PromHouse/util"
@@ -181,7 +182,7 @@ func (ch *ClickHouse) Collect(c chan<- prometheus.Metric) {
 	ch.mWrittenSamples.Collect(c)
 }
 
-func (ch *ClickHouse) Read(ctx context.Context, queries []Query) (data []model.Matrix, err error) {
+func (ch *ClickHouse) Read(ctx context.Context, queries []Query) (res *prompb.ReadResponse, err error) {
 	start := time.Now()
 	defer func() {
 		if err == nil {
@@ -196,15 +197,14 @@ func (ch *ClickHouse) Read(ctx context.Context, queries []Query) (data []model.M
 		ch.mReadErrors.WithLabelValues(t).Inc()
 	}()
 
-	data = make([]model.Matrix, len(queries))
+	res = &prompb.ReadResponse{
+		Results: make([]*prompb.QueryResult, len(queries)),
+	}
 	for i, q := range queries {
+		res.Results[i] = new(prompb.QueryResult)
 		query := fmt.Sprintf("SELECT __labels__, __fingerprint__, __ts__, __value__ FROM %s.samples WHERE __ts__ >= ? AND __ts__ <= ?", ch.database)
 		args := []interface{}{int64(q.Start), int64(q.End)}
 		for _, matcher := range q.Matchers {
-			// if matcher.Name == model.MetricNameLabel {
-			// 	query += fmt.Sprintf(" AND %s", matcher.Name)
-			// } else {
-
 			switch matcher.Type {
 			case MatchEqual:
 				query += fmt.Sprintf(" AND visitParamExtractString(__labels__, '%s') = ?", matcher.Name)
@@ -230,46 +230,53 @@ func (ch *ClickHouse) Read(ctx context.Context, queries []Query) (data []model.M
 			return
 		}
 
-		var ss *model.SampleStream
+		var ts *prompb.TimeSeries
 		var b []byte
 		var fingerprint, prevFingerprint uint64
-		var ts int64
+		var t int64
 		var value float64
 		for rows.Next() {
-			if err = rows.Scan(&b, &fingerprint, &ts, &value); err != nil {
+			if err = rows.Scan(&b, &fingerprint, &t, &value); err != nil {
 				return
 			}
 			if fingerprint != prevFingerprint {
 				prevFingerprint = fingerprint
-				if ss != nil {
-					data[i] = append(data[i], ss)
+				if ts != nil {
+					res.Results[i].Timeseries = append(res.Results[i].Timeseries, ts)
 				}
 
 				var ls model.LabelSet
 				if err = ls.UnmarshalJSON(b); err != nil {
 					return
 				}
-				ss = &model.SampleStream{
-					Metric: model.Metric(ls),
+				labels := make([]*prompb.Label, 0, len(ls))
+				for n, v := range ls {
+					labels = append(labels, &prompb.Label{
+						Name:  string(n),
+						Value: string(v),
+					})
+				}
+				ts = &prompb.TimeSeries{
+					Labels: labels,
 				}
 			}
-			ss.Values = append(ss.Values, model.SamplePair{
-				Timestamp: model.Time(ts),
-				Value:     model.SampleValue(value),
+			ts.Samples = append(ts.Samples, &prompb.Sample{
+				Timestamp: t,
+				Value:     value,
 			})
 		}
 		if err = rows.Close(); err != nil {
 			return
 		}
-		if ss != nil {
-			data[i] = append(data[i], ss)
+		if ts != nil {
+			res.Results[i].Timeseries = append(res.Results[i].Timeseries, ts)
 		}
 	}
 
 	return
 }
 
-func (ch *ClickHouse) Write(ctx context.Context, data model.Matrix) (err error) {
+func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err error) {
 	start := time.Now()
 	var tx *sql.Tx
 	defer func() {
@@ -313,39 +320,34 @@ func (ch *ClickHouse) Write(ctx context.Context, data model.Matrix) (err error) 
 		}
 	}()
 
-	for _, ss := range data {
+	var samples int
+	for _, ts := range data.Timeseries {
 		args := make([]interface{}, columns)
 
-		labels := make(map[string]string, len(ss.Metric))
-		for n, v := range ss.Metric {
-			// if n == model.MetricNameLabel {
-			// 	args[0] = string(v)
-			// } else {
-			labels[string(n)] = string(v)
-			ch.mWrittenLabels.WithLabelValues(string(n)).Inc()
+		metric := make(model.Metric, len(ts.Labels))
+		for _, l := range ts.Labels {
+			metric[model.LabelName(l.Name)] = model.LabelValue(l.Value)
+			ch.mWrittenLabels.WithLabelValues(l.Name).Inc()
 		}
-		args[0] = util.MarshalLabels(labels)
-		args[1] = uint64(ss.Metric.Fingerprint())
+		args[0] = util.MarshalMetric(metric)
+		args[1] = uint64(metric.Fingerprint())
 
-		// for i, l := range ch.labels {
-		// 	args[i+1] = string(ss.Metric[model.LabelName(l)])
-		// }
-
-		for _, sp := range ss.Values {
-			args[len(args)-3] = int64(sp.Timestamp)
-			args[len(args)-2] = float64(sp.Value)
-			args[len(args)-1] = sp.Timestamp.Time()
+		for _, s := range ts.Samples {
+			args[len(args)-3] = s.Timestamp
+			args[len(args)-2] = s.Value
+			args[len(args)-1] = model.Time(s.Timestamp).Time()
 			_, err = stmt.ExecContext(ctx, args...)
 			if err != nil {
 				return
 			}
+			samples++
 		}
 	}
 
 	if err = tx.Commit(); err != nil {
 		return
 	}
-	ch.mWrittenSamples.Add(float64(len(data)))
+	ch.mWrittenSamples.Add(float64(samples))
 	return
 }
 

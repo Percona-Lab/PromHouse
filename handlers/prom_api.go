@@ -19,6 +19,7 @@ package handlers
 import (
 	"io/ioutil"
 	"net/http"
+	"sync"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
@@ -34,16 +35,26 @@ type PromAPI struct {
 	Logger  *logrus.Entry
 }
 
+var snappyPool = sync.Pool{
+	New: func() interface{} {
+		return make([]byte, 1024)
+	},
+}
+
 func readPB(req *http.Request, pb proto.Unmarshaler) error {
 	compressed, err := ioutil.ReadAll(req.Body)
 	if err != nil {
 		return err
 	}
-	b, err := snappy.Decode(nil, compressed)
-	if err != nil {
-		return err
+
+	dst := snappyPool.Get().([]byte)
+	dst = dst[:cap(dst)]
+	b, err := snappy.Decode(dst, compressed)
+	if err == nil {
+		err = pb.Unmarshal(b)
 	}
-	return pb.Unmarshal(b)
+	snappyPool.Put(b)
+	return err
 }
 
 func (p *PromAPI) convertReadRequest(request *prompb.ReadRequest) []storages.Query {
@@ -111,8 +122,11 @@ func (p *PromAPI) Read(rw http.ResponseWriter, req *http.Request) error {
 	}
 	rw.Header().Set("Content-Type", "application/x-protobuf")
 	rw.Header().Set("Content-Encoding", "snappy")
-	compressed := snappy.Encode(nil, b)
+	dst := snappyPool.Get().([]byte)
+	dst = dst[:cap(dst)]
+	compressed := snappy.Encode(dst, b)
 	_, err = rw.Write(compressed)
+	snappyPool.Put(compressed)
 	return err
 }
 

@@ -88,58 +88,20 @@ func (p *PromAPI) convertReadRequest(request *prompb.ReadRequest) []storages.Que
 	return queries
 }
 
-func (p *PromAPI) convertMatrixes(data []model.Matrix) (response *prompb.ReadResponse, series, samples int) {
-	response = &prompb.ReadResponse{
-		Results: make([]*prompb.QueryResult, len(data)),
-	}
-	for i, m := range data {
-		qr := &prompb.QueryResult{
-			Timeseries: make([]*prompb.TimeSeries, len(m)),
-		}
-		for j, ss := range m {
-			ts := &prompb.TimeSeries{
-				Labels:  make([]*prompb.Label, 0, len(ss.Metric)),
-				Samples: make([]*prompb.Sample, len(ss.Values)),
-			}
-			for n, v := range ss.Metric {
-				ts.Labels = append(ts.Labels, &prompb.Label{
-					Name:  string(n),
-					Value: string(v),
-				})
-			}
-			for k, sp := range ss.Values {
-				ts.Samples[k] = &prompb.Sample{
-					Timestamp: int64(sp.Timestamp),
-					Value:     float64(sp.Value),
-				}
-				samples++
-			}
-			qr.Timeseries[j] = ts
-			series++
-		}
-		response.Results[i] = qr
-	}
-	return
-}
-
 func (p *PromAPI) Read(rw http.ResponseWriter, req *http.Request) error {
 	var request prompb.ReadRequest
 	if err := readPB(req, &request); err != nil {
 		return err
 	}
 
-	queries := p.convertReadRequest(&request)
-
 	// read from storage
+	queries := p.convertReadRequest(&request)
 	p.Logger.Infof("Queries: %s", queries)
-	data, err := p.Storage.Read(req.Context(), queries)
+	response, err := p.Storage.Read(req.Context(), queries)
 	if err != nil {
 		return err
 	}
-	p.Logger.Debugf("Response data:\n%s", data)
-
-	response, series, samples := p.convertMatrixes(data)
-	p.Logger.Infof("Response: %d matrixes, %d time series, %d samples.", len(data), series, samples)
+	p.Logger.Debugf("Response data:\n%s", response)
 
 	// marshal, encode and write response
 	// TODO use MarshalTo with sync.Pool?
@@ -154,49 +116,10 @@ func (p *PromAPI) Read(rw http.ResponseWriter, req *http.Request) error {
 	return err
 }
 
-func (p *PromAPI) convertWriteRequest(request *prompb.WriteRequest) (data model.Matrix, samples int) {
-	data = make(model.Matrix, len(request.Timeseries))
-	for i, ts := range request.Timeseries {
-		ss := &model.SampleStream{
-			Metric: make(model.Metric, len(ts.Labels)),
-			Values: make([]model.SamplePair, len(ts.Samples)),
-		}
-		for _, l := range ts.Labels {
-			n := model.LabelName(l.Name)
-			v := model.LabelValue(l.Value)
-			if !n.IsValid() {
-				p.Logger.Panicf("expectation failed: invalid label name %q", n)
-			}
-			if n == model.MetricNameLabel {
-				if !model.IsValidMetricName(v) {
-					p.Logger.Panicf("invalid metric name %q", v)
-				}
-			} else if !v.IsValid() {
-				p.Logger.Panicf("invalid value %q for label %s", v, n)
-			}
-			ss.Metric[n] = v
-		}
-		for j, s := range ts.Samples {
-			ss.Values[j] = model.SamplePair{
-				Timestamp: model.Time(s.Timestamp),
-				Value:     model.SampleValue(s.Value),
-			}
-			samples++
-		}
-		data[i] = ss
-	}
-	return
-}
-
 func (p *PromAPI) Write(rw http.ResponseWriter, req *http.Request) error {
 	var request prompb.WriteRequest
 	if err := readPB(req, &request); err != nil {
 		return err
 	}
-
-	data, samples := p.convertWriteRequest(&request)
-
-	p.Logger.Infof("Writing %d time series, %d samples.", len(data), samples)
-	p.Logger.Debugf("Writing data:\n%s", data)
-	return p.Storage.Write(req.Context(), data)
+	return p.Storage.Write(req.Context(), &request)
 }

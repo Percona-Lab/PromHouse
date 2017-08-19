@@ -20,20 +20,22 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/prometheus/prompb"
 )
 
 // Storage represents generic storage.
 type Storage interface {
 	// Read runs queries in the storage and returns the same amount of matrixes.
 	// Event if they are empty, they must be present in the returned slice.
-	Read(context.Context, []Query) ([]model.Matrix, error)
+	Read(context.Context, []Query) (*prompb.ReadResponse, error)
 
 	// Write puts data into storage.
-	Write(context.Context, model.Matrix) error
+	Write(context.Context, *prompb.WriteRequest) error
 
 	prometheus.Collector
 }
@@ -107,6 +109,31 @@ func (m *Matcher) Match(metric model.Metric) bool {
 	default:
 		panic("unknown match type")
 	}
+}
+
+// sortTimeSeries sorts timeseries by a value of __name__ label.
+func sortTimeSeries(timeSeries []*prompb.TimeSeries) {
+	sort.Slice(timeSeries, func(i, j int) bool {
+		var nameI, nameJ string
+		for _, l := range timeSeries[i].Labels {
+			if l.Name == model.MetricNameLabel {
+				nameI = l.Value
+				break
+			}
+		}
+		for _, l := range timeSeries[j].Labels {
+			if l.Name == model.MetricNameLabel {
+				nameJ = l.Value
+				break
+			}
+		}
+		return nameI < nameJ
+	})
+}
+
+// sortLabels sorts labels by name.
+func sortLabels(labels []*prompb.Label) {
+	sort.Slice(labels, func(i, j int) bool { return labels[i].Name < labels[j].Name })
 }
 
 // check interfaces

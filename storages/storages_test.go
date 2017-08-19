@@ -18,47 +18,61 @@ package storages
 
 import (
 	"context"
-	"sort"
 	"testing"
 	"time"
 
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/prometheus/prompb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func getData() model.Matrix {
+func getData() *prompb.WriteRequest {
 	start := model.Now().Add(-6 * time.Second)
 
-	return model.Matrix{
-		{
-			Metric: model.Metric{"__name__": "http_requests_total", "code": "200", "handler": "query"},
-			Values: []model.SamplePair{
-				{Value: 13, Timestamp: start},
-				{Value: 14, Timestamp: start.Add(1 * time.Second)},
-				{Value: 14, Timestamp: start.Add(2 * time.Second)},
-				{Value: 14, Timestamp: start.Add(3 * time.Second)},
-				{Value: 15, Timestamp: start.Add(4 * time.Second)},
+	return &prompb.WriteRequest{
+		Timeseries: []*prompb.TimeSeries{
+			{
+				Labels: []*prompb.Label{
+					{Name: "__name__", Value: "http_requests_total"},
+					{Name: "code", Value: "200"},
+					{Name: "handler", Value: "query"},
+				},
+				Samples: []*prompb.Sample{
+					{Value: 13, Timestamp: int64(start)},
+					{Value: 14, Timestamp: int64(start.Add(1 * time.Second))},
+					{Value: 14, Timestamp: int64(start.Add(2 * time.Second))},
+					{Value: 14, Timestamp: int64(start.Add(3 * time.Second))},
+					{Value: 15, Timestamp: int64(start.Add(4 * time.Second))},
+				},
 			},
-		},
-		{
-			Metric: model.Metric{"__name__": "http_requests_total", "code": "400", "handler": "query_range"},
-			Values: []model.SamplePair{
-				{Value: 9, Timestamp: start},
-				{Value: 9, Timestamp: start.Add(1 * time.Second)},
-				{Value: 9, Timestamp: start.Add(2 * time.Second)},
-				{Value: 11, Timestamp: start.Add(3 * time.Second)},
-				{Value: 11, Timestamp: start.Add(4 * time.Second)},
+			{
+				Labels: []*prompb.Label{
+					{Name: "__name__", Value: "http_requests_total"},
+					{Name: "code", Value: "400"},
+					{Name: "handler", Value: "query_range"},
+				},
+				Samples: []*prompb.Sample{
+					{Value: 9, Timestamp: int64(start)},
+					{Value: 9, Timestamp: int64(start.Add(1 * time.Second))},
+					{Value: 9, Timestamp: int64(start.Add(2 * time.Second))},
+					{Value: 11, Timestamp: int64(start.Add(3 * time.Second))},
+					{Value: 11, Timestamp: int64(start.Add(4 * time.Second))},
+				},
 			},
-		},
-		{
-			Metric: model.Metric{"__name__": "http_requests_total", "code": "200", "handler": "prometheus"},
-			Values: []model.SamplePair{
-				{Value: 591, Timestamp: start},
-				{Value: 592, Timestamp: start.Add(1 * time.Second)},
-				{Value: 593, Timestamp: start.Add(2 * time.Second)},
-				{Value: 594, Timestamp: start.Add(3 * time.Second)},
-				{Value: 595, Timestamp: start.Add(4 * time.Second)},
+			{
+				Labels: []*prompb.Label{
+					{Name: "__name__", Value: "http_requests_total"},
+					{Name: "code", Value: "200"},
+					{Name: "handler", Value: "prometheus"},
+				},
+				Samples: []*prompb.Sample{
+					{Value: 591, Timestamp: int64(start)},
+					{Value: 592, Timestamp: int64(start.Add(1 * time.Second))},
+					{Value: 593, Timestamp: int64(start.Add(2 * time.Second))},
+					{Value: 594, Timestamp: int64(start.Add(3 * time.Second))},
+					{Value: 595, Timestamp: int64(start.Add(4 * time.Second))},
+				},
 			},
 		},
 	}
@@ -107,10 +121,11 @@ func TestStorages(t *testing.T) {
 					t.Run(q.String(), func(t *testing.T) {
 						data, err := storage.Read(context.Background(), []Query{q})
 						assert.NoError(t, err)
-						require.Len(t, data, 1)
-						require.Len(t, data[0], 3)
-						for i, ss := range data[0] {
-							assert.Equal(t, storedData[i], ss)
+						require.Len(t, data.Results, 1)
+						require.Len(t, data.Results[0].Timeseries, 3)
+						for i, ts := range data.Results[0].Timeseries {
+							sortLabels(ts.Labels)
+							assert.Equal(t, storedData.Timeseries[i], ts)
 						}
 					})
 				}
@@ -151,8 +166,8 @@ func TestStorages(t *testing.T) {
 					t.Run(q.String(), func(t *testing.T) {
 						data, err := storage.Read(context.Background(), []Query{q})
 						assert.NoError(t, err)
-						require.Len(t, data, 1)
-						require.Len(t, data[0], 0)
+						require.Len(t, data.Results, 1)
+						require.Len(t, data.Results[0].Timeseries, 0)
 					})
 				}
 			})
@@ -183,10 +198,11 @@ func TestStorages(t *testing.T) {
 					t.Run(q.String(), func(t *testing.T) {
 						data, err := storage.Read(context.Background(), []Query{q})
 						assert.NoError(t, err)
-						require.Len(t, data, 1)
-						require.Len(t, data[0], 3)
-						for i, ss := range data[0] {
-							assert.Equal(t, storedData[i], ss)
+						require.Len(t, data.Results, 1)
+						require.Len(t, data.Results[0].Timeseries, 3)
+						for i, ts := range data.Results[0].Timeseries {
+							sortLabels(ts.Labels)
+							assert.Equal(t, storedData.Timeseries[i], ts)
 						}
 					})
 				}
@@ -227,21 +243,23 @@ func TestStorages(t *testing.T) {
 					t.Run(q.String(), func(t *testing.T) {
 						data, err := storage.Read(context.Background(), []Query{q})
 						assert.NoError(t, err)
-						require.Len(t, data, 1)
-						require.Len(t, data[0], 0)
+						require.Len(t, data.Results, 1)
+						require.Len(t, data.Results[0].Timeseries, 0)
 					})
 				}
 			})
 
 			t.Run("WriteFunnyLabels", func(t *testing.T) {
-				v := []model.SamplePair{{Value: 1, Timestamp: start}}
-				storedData := model.Matrix{
-					{Metric: model.Metric{"__name__": "funny_1", "label": ""}, Values: v},
-					{Metric: model.Metric{"__name__": "funny_2", "label": "'`\"\\"}, Values: v},
-					{Metric: model.Metric{"__name__": "funny_3", "label": "''``\"\"\\\\"}, Values: v},
-					{Metric: model.Metric{"__name__": "funny_4", "label": "'''```\"\"\"\\\\\\"}, Values: v},
-					{Metric: model.Metric{"__name__": "funny_5", "label": `\ \\ \\\\ \\\\`}, Values: v},
-					{Metric: model.Metric{"__name__": "funny_6", "label": "🆗"}, Values: v},
+				s := []*prompb.Sample{{Value: 1, Timestamp: int64(start)}}
+				storedData := &prompb.WriteRequest{
+					Timeseries: []*prompb.TimeSeries{
+						{Labels: []*prompb.Label{{"__name__", "funny_1"}, {"label", ""}}, Samples: s},
+						{Labels: []*prompb.Label{{"__name__", "funny_2"}, {"label", "'`\"\\"}}, Samples: s},
+						{Labels: []*prompb.Label{{"__name__", "funny_3"}, {"label", "''``\"\"\\\\"}}, Samples: s},
+						{Labels: []*prompb.Label{{"__name__", "funny_4"}, {"label", "'''```\"\"\"\\\\\\"}}, Samples: s},
+						{Labels: []*prompb.Label{{"__name__", "funny_5"}, {"label", `\ \\ \\\\ \\\\`}}, Samples: s},
+						{Labels: []*prompb.Label{{"__name__", "funny_6"}, {"label", "🆗"}}, Samples: s},
+					},
 				}
 				require.NoError(t, storage.Write(context.Background(), storedData))
 
@@ -257,11 +275,12 @@ func TestStorages(t *testing.T) {
 
 				data, err := storage.Read(context.Background(), []Query{q})
 				assert.NoError(t, err)
-				require.Len(t, data, 1)
-				sort.Sort(data[0])
-				require.Len(t, data[0], len(storedData))
-				for i, ss := range data[0] {
-					assert.Equal(t, storedData[i], ss)
+				require.Len(t, data.Results, 1)
+				require.Len(t, data.Results[0].Timeseries, len(storedData.Timeseries))
+				sortTimeSeries(data.Results[0].Timeseries)
+				for i, ts := range data.Results[0].Timeseries {
+					sortLabels(ts.Labels)
+					assert.Equal(t, storedData.Timeseries[i], ts)
 				}
 			})
 		})

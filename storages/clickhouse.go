@@ -411,14 +411,20 @@ func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 	}()
 
 	// make metrics and calculate fingerprints
+	timeseries := make([]model.Fingerprint, len(data.Timeseries))
 	metrics := make(map[model.Fingerprint]model.Metric, len(data.Timeseries))
-	for _, ts := range data.Timeseries {
+	for i, ts := range data.Timeseries {
 		m := makeMetric(ts.Labels)
-		metrics[m.Fingerprint()] = m
+		f := m.Fingerprint()
+		timeseries[i] = f
+		metrics[f] = m
+	}
+	if len(timeseries) != len(metrics) {
+		ch.l.Debugf("got %d timeseries, but only %d of them are unique metrics", len(timeseries), len(metrics))
 	}
 
 	// find new metrics
-	newMetrics := make([]model.Fingerprint, 0, len(metrics))
+	var newMetrics []model.Fingerprint
 	ch.metricsRW.Lock()
 	for f, m := range metrics {
 		_, ok := ch.metrics[f]
@@ -430,27 +436,29 @@ func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 	ch.metricsRW.Unlock()
 
 	// write new metrics
-	err = inTransaction(ctx, ch.db, func(tx *sql.Tx) error {
-		query := fmt.Sprintf(`INSERT INTO %s.metrics (date, fingerprint, labels) VALUES (?, ?, ?)`, ch.database)
-		var stmt *sql.Stmt
-		if stmt, err = tx.PrepareContext(ctx, query); err != nil {
-			return err
-		}
-
-		args := make([]interface{}, 3)
-		args[0] = model.Now().Time()
-		for _, f := range newMetrics {
-			args[1] = uint64(f)
-			args[2] = util.MarshalMetric(metrics[f])
-			if _, err = stmt.ExecContext(ctx, args...); err != nil {
+	if len(newMetrics) > 0 {
+		err = inTransaction(ctx, ch.db, func(tx *sql.Tx) error {
+			query := fmt.Sprintf(`INSERT INTO %s.metrics (date, fingerprint, labels) VALUES (?, ?, ?)`, ch.database)
+			var stmt *sql.Stmt
+			if stmt, err = tx.PrepareContext(ctx, query); err != nil {
 				return err
 			}
-		}
 
-		return stmt.Close()
-	})
-	if err != nil {
-		return
+			args := make([]interface{}, 3)
+			args[0] = model.Now().Time()
+			for _, f := range newMetrics {
+				args[1] = uint64(f)
+				args[2] = util.MarshalMetric(metrics[f])
+				if _, err = stmt.ExecContext(ctx, args...); err != nil {
+					return err
+				}
+			}
+
+			return stmt.Close()
+		})
+		if err != nil {
+			return
+		}
 	}
 
 	// write samples
@@ -463,9 +471,8 @@ func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 		}
 
 		args := make([]interface{}, 4)
-		for _, ts := range data.Timeseries {
-			m := makeMetric(ts.Labels)
-			args[1] = uint64(m.Fingerprint())
+		for i, ts := range data.Timeseries {
+			args[1] = uint64(timeseries[i])
 
 			for _, s := range ts.Samples {
 				args[0] = model.Time(s.Timestamp).Time()

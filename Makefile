@@ -37,3 +37,6 @@ env-run-mac:
 
 env-stop-mac:
 	docker-compose -f misc/docker-compose-mac.yml -p promhouse stop
+
+clickhouse-client:
+	docker exec -ti -u root promhouse_clickhouse_1 /usr/bin/clickhouse --client

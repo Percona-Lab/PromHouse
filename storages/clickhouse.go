@@ -54,7 +54,6 @@ type ClickHouse struct {
 
 	mWrites         prometheus.Summary
 	mWriteErrors    *prometheus.CounterVec
-	mWrittenLabels  *prometheus.CounterVec
 	mWrittenMetrics prometheus.Counter
 	mWrittenSamples prometheus.Counter
 }
@@ -146,12 +145,6 @@ func NewClickHouse(dsn string, database string, init bool) (*ClickHouse, error) 
 			Name:      "write_errors",
 			Help:      "Number of write errors by type: canceled, other.",
 		}, []string{"type"}),
-		mWrittenLabels: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: namespace,
-			Subsystem: subsystem,
-			Name:      "written_labels",
-			Help:      "Number of written labels by name.",
-		}, []string{"name"}),
 		mWrittenMetrics: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: subsystem,
@@ -244,7 +237,6 @@ func (ch *ClickHouse) Describe(c chan<- *prometheus.Desc) {
 
 	ch.mWrites.Describe(c)
 	ch.mWriteErrors.Describe(c)
-	ch.mWrittenLabels.Describe(c)
 	ch.mWrittenMetrics.Describe(c)
 	ch.mWrittenSamples.Describe(c)
 }
@@ -273,7 +265,6 @@ func (ch *ClickHouse) Collect(c chan<- prometheus.Metric) {
 
 	ch.mWrites.Collect(c)
 	ch.mWriteErrors.Collect(c)
-	ch.mWrittenLabels.Collect(c)
 	ch.mWrittenMetrics.Collect(c)
 	ch.mWrittenSamples.Collect(c)
 }

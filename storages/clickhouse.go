@@ -106,37 +106,12 @@ func NewClickHouse(dsn string, database string, init bool) (*ClickHouse, error) 
 		}
 	}
 
-	// load existing metrics
-	metrics := make(map[model.Fingerprint]model.Metric, 8192)
-	q := fmt.Sprintf(`SELECT fingerprint, labels FROM %s.metrics`, database)
-	rows, err := db.Query(q)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var f uint64
-	var b []byte
-	for rows.Next() {
-		if err = rows.Scan(&f, &b); err != nil {
-			return nil, err
-		}
-		var ls model.LabelSet
-		if err = ls.UnmarshalJSON(b); err != nil {
-			return nil, err
-		}
-		metrics[model.Fingerprint(f)] = model.Metric(ls)
-	}
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-	l.Debugf("Loaded %d existing metrics.", len(metrics))
-
 	ch := &ClickHouse{
 		db:       db,
 		l:        l,
 		database: database,
 
-		metrics: metrics,
+		metrics: make(map[model.Fingerprint]model.Metric, 8192),
 
 		mMetricsCurrent: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: namespace,
@@ -196,12 +171,60 @@ func NewClickHouse(dsn string, database string, init bool) (*ClickHouse, error) 
 		}),
 	}
 
+	go ch.runMetricsReloader(context.TODO())
+
 	ch.mReadErrors.WithLabelValues("canceled").Set(0)
 	ch.mReadErrors.WithLabelValues("other").Set(0)
 	ch.mWriteErrors.WithLabelValues("canceled").Set(0)
 	ch.mWriteErrors.WithLabelValues("other").Set(0)
 
 	return ch, nil
+}
+
+func (ch *ClickHouse) runMetricsReloader(ctx context.Context) {
+	ticker := time.Tick(time.Second)
+	q := fmt.Sprintf(`SELECT fingerprint, labels FROM %s.metrics`, ch.database)
+	for {
+		metrics := make(map[model.Fingerprint]model.Metric, len(ch.metrics))
+		err := func() error {
+			rows, err := ch.db.Query(q)
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+
+			var f uint64
+			var b []byte
+			for rows.Next() {
+				if err = rows.Scan(&f, &b); err != nil {
+					return err
+				}
+				var ls model.LabelSet
+				if err = ls.UnmarshalJSON(b); err != nil {
+					return err
+				}
+				metrics[model.Fingerprint(f)] = model.Metric(ls)
+			}
+			return rows.Err()
+		}()
+		if err != nil {
+			ch.l.Warn(err)
+		}
+
+		ch.l.Debugf("Loaded %d existing metrics.", len(metrics))
+		ch.metricsRW.Lock()
+		for f, m := range metrics {
+			ch.metrics[f] = m
+		}
+		ch.metricsRW.Unlock()
+
+		select {
+		case <-ctx.Done():
+			ch.l.Warn(ctx.Err)
+			return
+		case <-ticker:
+		}
+	}
 }
 
 // makeMetric converts a slice of labels to a metric.

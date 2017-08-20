@@ -205,17 +205,17 @@ func (ch *ClickHouse) runMetricsReloader(ctx context.Context) {
 			}
 			return rows.Err()
 		}()
-		if err != nil {
-			ch.l.Warn(err)
+		if err == nil {
+			ch.metricsRW.Lock()
+			n := len(metrics) - len(ch.metrics)
+			for f, m := range metrics {
+				ch.metrics[f] = m
+			}
+			ch.metricsRW.Unlock()
+			ch.l.Debugf("Loaded %d existing metrics, %d were unknown to this instance.", len(metrics), n)
+		} else {
+			ch.l.Error(err)
 		}
-
-		ch.metricsRW.Lock()
-		n := len(metrics) - len(ch.metrics)
-		for f, m := range metrics {
-			ch.metrics[f] = m
-		}
-		ch.metricsRW.Unlock()
-		ch.l.Debugf("Loaded %d existing metrics, %d were unknown to this instance.", len(metrics), n)
 
 		select {
 		case <-ctx.Done():

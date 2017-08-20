@@ -60,15 +60,7 @@ func (m *Memory) Read(ctx context.Context, queries []Query) (*prompb.ReadRespons
 	for i, q := range queries {
 		res.Results[i] = new(prompb.QueryResult)
 		for _, metric := range m.metrics {
-			matches := true
-			for _, matcher := range q.Matchers {
-				if !matcher.Match(metric) {
-					matches = false
-					break
-				}
-			}
-
-			if matches {
+			if q.Matchers.Match(metric) {
 				var ts *prompb.TimeSeries
 				samples := m.samples[metric.Fingerprint()]
 				start, end := int64(q.Start), int64(q.End)

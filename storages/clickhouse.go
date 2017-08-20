@@ -20,7 +20,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
+	"sync"
 	"time"
 
 	_ "github.com/kshvakov/clickhouse" // register SQL driver
@@ -42,8 +42,11 @@ type ClickHouse struct {
 	db       *sql.DB
 	l        *logrus.Entry
 	database string
-	// labels   []string
 
+	metrics   map[model.Fingerprint]model.Metric
+	metricsRW sync.RWMutex
+
+	mMetricsCurrent prometheus.Gauge
 	mSamplesCurrent prometheus.Gauge
 
 	mReads      prometheus.Summary
@@ -51,7 +54,7 @@ type ClickHouse struct {
 
 	mWrites         prometheus.Summary
 	mWriteErrors    *prometheus.CounterVec
-	mWrittenLabels  *prometheus.CounterVec
+	mWrittenMetrics prometheus.Counter
 	mWrittenSamples prometheus.Counter
 }
 
@@ -73,18 +76,22 @@ func NewClickHouse(dsn string, database string, init bool) (*ClickHouse, error) 
 	queries = append(queries, fmt.Sprintf(`CREATE DATABASE IF NOT EXISTS %s`, database))
 
 	// TODO use GraphiteMergeTree?
-	// TODO remove fingerprint?
-	// TODO add __name__, instance, job as separate columns?
-	// labels := []string{"instance", "job"}
 	queries = append(queries, fmt.Sprintf(`
 		CREATE TABLE IF NOT EXISTS %s.samples (
-			__date__ Date,
-			__labels__ String,
-			__fingerprint__ UInt64,
-			__ts__ Int64,
-			__value__ Float64
+			date Date,
+			fingerprint UInt64,
+			timestamp Int64,
+			value Float64
 		)
-		ENGINE = MergeTree(__date__, (__fingerprint__, __ts__), 8192)`, database))
+		ENGINE = MergeTree(date, (fingerprint, timestamp), 8192)`, database))
+
+	queries = append(queries, fmt.Sprintf(`
+		CREATE TABLE IF NOT EXISTS %s.metrics (
+			date Date,
+			fingerprint UInt64,
+			labels String
+		)
+		ENGINE = ReplacingMergeTree(date, fingerprint, 8192)`, database))
 
 	for _, q := range queries {
 		l.Infof("Executing: %s", q)
@@ -97,8 +104,15 @@ func NewClickHouse(dsn string, database string, init bool) (*ClickHouse, error) 
 		db:       db,
 		l:        l,
 		database: database,
-		// labels:   labels,
 
+		metrics: make(map[model.Fingerprint]model.Metric, 8192),
+
+		mMetricsCurrent: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "metrics_current",
+			Help:      "Current number of stored metrics.",
+		}),
 		mSamplesCurrent: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: namespace,
 			Subsystem: subsystem,
@@ -131,12 +145,12 @@ func NewClickHouse(dsn string, database string, init bool) (*ClickHouse, error) 
 			Name:      "write_errors",
 			Help:      "Number of write errors by type: canceled, other.",
 		}, []string{"type"}),
-		mWrittenLabels: prometheus.NewCounterVec(prometheus.CounterOpts{
+		mWrittenMetrics: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: subsystem,
-			Name:      "written_labels",
-			Help:      "Number of written labels by name.",
-		}, []string{"name"}),
+			Name:      "written_metrics",
+			Help:      "Number of written metrics.",
+		}),
 		mWrittenSamples: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: subsystem,
@@ -144,6 +158,8 @@ func NewClickHouse(dsn string, database string, init bool) (*ClickHouse, error) 
 			Help:      "Number of written samples.",
 		}),
 	}
+
+	go ch.runMetricsReloader(context.TODO())
 
 	ch.mReadErrors.WithLabelValues("canceled").Set(0)
 	ch.mReadErrors.WithLabelValues("other").Set(0)
@@ -153,7 +169,67 @@ func NewClickHouse(dsn string, database string, init bool) (*ClickHouse, error) 
 	return ch, nil
 }
 
+func (ch *ClickHouse) runMetricsReloader(ctx context.Context) {
+	ticker := time.Tick(time.Second)
+	q := fmt.Sprintf(`SELECT DISTINCT fingerprint, labels FROM %s.metrics`, ch.database)
+	for {
+		ch.metricsRW.RLock()
+		metrics := make(map[model.Fingerprint]model.Metric, len(ch.metrics))
+		ch.metricsRW.RUnlock()
+
+		err := func() error {
+			rows, err := ch.db.Query(q)
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+
+			var f uint64
+			var b []byte
+			for rows.Next() {
+				if err = rows.Scan(&f, &b); err != nil {
+					return err
+				}
+				var ls model.LabelSet
+				if err = ls.UnmarshalJSON(b); err != nil {
+					return err
+				}
+				metrics[model.Fingerprint(f)] = model.Metric(ls)
+			}
+			return rows.Err()
+		}()
+		if err == nil {
+			ch.metricsRW.Lock()
+			n := len(metrics) - len(ch.metrics)
+			for f, m := range metrics {
+				ch.metrics[f] = m
+			}
+			ch.metricsRW.Unlock()
+			ch.l.Debugf("Loaded %d existing metrics, %d were unknown to this instance.", len(metrics), n)
+		} else {
+			ch.l.Error(err)
+		}
+
+		select {
+		case <-ctx.Done():
+			ch.l.Warn(ctx.Err)
+			return
+		case <-ticker:
+		}
+	}
+}
+
+// makeMetric converts a slice of labels to a metric.
+func makeMetric(labels []*prompb.Label) model.Metric {
+	metric := make(model.Metric, len(labels))
+	for _, l := range labels {
+		metric[model.LabelName(l.Name)] = model.LabelValue(l.Value)
+	}
+	return metric
+}
+
 func (ch *ClickHouse) Describe(c chan<- *prometheus.Desc) {
+	ch.mMetricsCurrent.Describe(c)
 	ch.mSamplesCurrent.Describe(c)
 
 	ch.mReads.Describe(c)
@@ -161,19 +237,27 @@ func (ch *ClickHouse) Describe(c chan<- *prometheus.Desc) {
 
 	ch.mWrites.Describe(c)
 	ch.mWriteErrors.Describe(c)
-	ch.mWrittenLabels.Describe(c)
+	ch.mWrittenMetrics.Describe(c)
 	ch.mWrittenSamples.Describe(c)
 }
 
 func (ch *ClickHouse) Collect(c chan<- prometheus.Metric) {
-	query := fmt.Sprintf("SELECT COUNT(*) FROM %s.samples", ch.database)
 	var count uint64
+	query := fmt.Sprintf(`SELECT COUNT(*) FROM %s.metrics`, ch.database)
+	if err := ch.db.QueryRow(query).Scan(&count); err != nil {
+		ch.l.Error(err)
+		return
+	}
+	ch.mMetricsCurrent.Set(float64(count))
+
+	query = fmt.Sprintf(`SELECT COUNT(*) FROM %s.samples`, ch.database)
 	if err := ch.db.QueryRow(query).Scan(&count); err != nil {
 		ch.l.Error(err)
 		return
 	}
 	ch.mSamplesCurrent.Set(float64(count))
 
+	ch.mMetricsCurrent.Collect(c)
 	ch.mSamplesCurrent.Collect(c)
 
 	ch.mReads.Collect(c)
@@ -181,7 +265,7 @@ func (ch *ClickHouse) Collect(c chan<- prometheus.Metric) {
 
 	ch.mWrites.Collect(c)
 	ch.mWriteErrors.Collect(c)
-	ch.mWrittenLabels.Collect(c)
+	ch.mWrittenMetrics.Collect(c)
 	ch.mWrittenSamples.Collect(c)
 }
 
@@ -205,91 +289,109 @@ func (ch *ClickHouse) Read(ctx context.Context, queries []Query) (res *prompb.Re
 	}
 	for i, q := range queries {
 		res.Results[i] = new(prompb.QueryResult)
-		query := fmt.Sprintf("SELECT __labels__, __fingerprint__, __ts__, __value__ FROM %s.samples WHERE __ts__ >= ? AND __ts__ <= ?", ch.database)
-		args := []interface{}{int64(q.Start), int64(q.End)}
-		for _, matcher := range q.Matchers {
-			switch matcher.Type {
-			case MatchEqual:
-				query += fmt.Sprintf(" AND visitParamExtractString(__labels__, '%s') = ?", matcher.Name)
-				args = append(args, matcher.Value)
-			case MatchNotEqual:
-				query += fmt.Sprintf(" AND visitParamExtractString(__labels__, '%s') != ?", matcher.Name)
-				args = append(args, matcher.Value)
-			case MatchRegexp:
-				query += fmt.Sprintf(" AND match(visitParamExtractString(__labels__, '%s'), ?)", matcher.Name)
-				args = append(args, "^(?:"+matcher.Value+")$")
-			case MatchNotRegexp:
-				query += fmt.Sprintf(" AND NOT match(visitParamExtractString(__labels__, '%s'), ?)", matcher.Name)
-				args = append(args, "^(?:"+matcher.Value+")$")
-			default:
-				ch.l.Panicf("unexpected match type: %d", matcher.Type)
+
+		// find matching metrics
+		fingerprints := make(map[uint64]struct{}, 64)
+		ch.metricsRW.RLock()
+		for f, m := range ch.metrics {
+			if q.Matchers.Match(m) {
+				fingerprints[uint64(f)] = struct{}{}
 			}
 		}
-		query += " ORDER BY __fingerprint__, __ts__"
+		ch.metricsRW.RUnlock()
+		if len(fingerprints) == 0 {
+			continue
+		}
 
-		var rows *sql.Rows
-		rows, err = ch.db.Query(query, args...)
+		// TODO check why uint64 is not properly handled, create an issue
+		var fs string
+		for f := range fingerprints {
+			fs += fmt.Sprintf("%d, ", f)
+		}
+
+		query := fmt.Sprintf(`
+			SELECT fingerprint, timestamp, value
+				FROM %s.samples
+				WHERE fingerprint IN (%s) AND timestamp >= ? AND timestamp <= ?
+				ORDER BY fingerprint, timestamp`,
+			ch.database, fs[:len(fs)-2], // cut last ", "
+		)
+		args := []interface{}{int64(q.Start), int64(q.End)}
+		err = func() error {
+			rows, err := ch.db.Query(query, args...)
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+
+			var ts *prompb.TimeSeries
+			var fingerprint, prevFingerprint uint64
+			var timestamp int64
+			var value float64
+			for rows.Next() {
+				if err = rows.Scan(&fingerprint, &timestamp, &value); err != nil {
+					return err
+				}
+				if fingerprint != prevFingerprint {
+					prevFingerprint = fingerprint
+					if ts != nil {
+						res.Results[i].Timeseries = append(res.Results[i].Timeseries, ts)
+					}
+
+					ch.metricsRW.RLock()
+					m := ch.metrics[model.Fingerprint(fingerprint)]
+					ch.metricsRW.RUnlock()
+					labels := make([]*prompb.Label, 0, len(m))
+					for n, v := range m {
+						labels = append(labels, &prompb.Label{
+							Name:  string(n),
+							Value: string(v),
+						})
+					}
+					ts = &prompb.TimeSeries{
+						Labels: labels,
+					}
+				}
+				ts.Samples = append(ts.Samples, &prompb.Sample{
+					Timestamp: timestamp,
+					Value:     value,
+				})
+			}
+			if ts != nil {
+				res.Results[i].Timeseries = append(res.Results[i].Timeseries, ts)
+			}
+			return rows.Err()
+		}()
 		if err != nil {
 			return
-		}
-
-		var ts *prompb.TimeSeries
-		var b []byte
-		var fingerprint, prevFingerprint uint64
-		var t int64
-		var value float64
-		for rows.Next() {
-			if err = rows.Scan(&b, &fingerprint, &t, &value); err != nil {
-				return
-			}
-			if fingerprint != prevFingerprint {
-				prevFingerprint = fingerprint
-				if ts != nil {
-					res.Results[i].Timeseries = append(res.Results[i].Timeseries, ts)
-				}
-
-				var ls model.LabelSet
-				if err = ls.UnmarshalJSON(b); err != nil {
-					return
-				}
-				labels := make([]*prompb.Label, 0, len(ls))
-				for n, v := range ls {
-					labels = append(labels, &prompb.Label{
-						Name:  string(n),
-						Value: string(v),
-					})
-				}
-				ts = &prompb.TimeSeries{
-					Labels: labels,
-				}
-			}
-			ts.Samples = append(ts.Samples, &prompb.Sample{
-				Timestamp: t,
-				Value:     value,
-			})
-		}
-		if err = rows.Close(); err != nil {
-			return
-		}
-		if ts != nil {
-			res.Results[i].Timeseries = append(res.Results[i].Timeseries, ts)
 		}
 	}
 
 	return
 }
 
+func inTransaction(ctx context.Context, db *sql.DB, f func(*sql.Tx) error) (err error) {
+	var tx *sql.Tx
+	if tx, err = db.BeginTx(ctx, nil); err != nil {
+		return
+	}
+	defer func() {
+		if err == nil {
+			err = tx.Commit()
+		} else {
+			tx.Rollback()
+		}
+	}()
+	err = f(tx)
+	return
+}
+
 func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err error) {
 	start := time.Now()
-	var tx *sql.Tx
 	defer func() {
 		if err == nil {
 			ch.mWrites.Observe(time.Since(start).Seconds())
 			return
-		}
-
-		if tx != nil {
-			tx.Rollback()
 		}
 
 		t := "other"
@@ -299,59 +401,90 @@ func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 		ch.mWriteErrors.WithLabelValues(t).Inc()
 	}()
 
-	tx, err = ch.db.BeginTx(ctx, nil)
+	// make metrics and calculate fingerprints
+	timeseries := make([]model.Fingerprint, len(data.Timeseries))
+	metrics := make(map[model.Fingerprint]model.Metric, len(data.Timeseries))
+	for i, ts := range data.Timeseries {
+		m := makeMetric(ts.Labels)
+		f := m.Fingerprint()
+		timeseries[i] = f
+		metrics[f] = m
+	}
+	if len(timeseries) != len(metrics) {
+		ch.l.Debugf("got %d timeseries, but only %d of them are unique metrics", len(timeseries), len(metrics))
+	}
+
+	// find new metrics
+	var newMetrics []model.Fingerprint
+	ch.metricsRW.Lock()
+	for f, m := range metrics {
+		_, ok := ch.metrics[f]
+		if !ok {
+			newMetrics = append(newMetrics, f)
+			ch.metrics[f] = m
+		}
+	}
+	ch.metricsRW.Unlock()
+
+	// write new metrics
+	if len(newMetrics) > 0 {
+		err = inTransaction(ctx, ch.db, func(tx *sql.Tx) error {
+			query := fmt.Sprintf(`INSERT INTO %s.metrics (date, fingerprint, labels) VALUES (?, ?, ?)`, ch.database)
+			var stmt *sql.Stmt
+			if stmt, err = tx.PrepareContext(ctx, query); err != nil {
+				return err
+			}
+
+			args := make([]interface{}, 3)
+			args[0] = model.Now().Time()
+			for _, f := range newMetrics {
+				args[1] = uint64(f)
+				args[2] = util.MarshalMetric(metrics[f])
+				if _, err = stmt.ExecContext(ctx, args...); err != nil {
+					return err
+				}
+			}
+
+			return stmt.Close()
+		})
+		if err != nil {
+			return
+		}
+	}
+
+	// write samples
+	var samples int
+	err = inTransaction(ctx, ch.db, func(tx *sql.Tx) error {
+		query := fmt.Sprintf(`INSERT INTO %s.samples (date, fingerprint, timestamp, value) VALUES (?, ?, ?, ?)`, ch.database)
+		var stmt *sql.Stmt
+		if stmt, err = tx.PrepareContext(ctx, query); err != nil {
+			return err
+		}
+
+		args := make([]interface{}, 4)
+		for i, ts := range data.Timeseries {
+			args[1] = uint64(timeseries[i])
+
+			for _, s := range ts.Samples {
+				args[0] = model.Time(s.Timestamp).Time()
+				args[2] = s.Timestamp
+				args[3] = s.Value
+				if _, err = stmt.ExecContext(ctx, args...); err != nil {
+					return err
+				}
+				samples++
+			}
+		}
+
+		return stmt.Close()
+	})
 	if err != nil {
 		return
 	}
 
-	// columns := 4 + len(ch.labels)
-	const columns = 5
-	placeholders := strings.Repeat("?, ", columns)
-	query := fmt.Sprintf(
-		`INSERT INTO %s.samples (__labels__, __fingerprint__, __ts__, __value__, __date__) VALUES (%s)`,
-		ch.database, placeholders[:len(placeholders)-2], // cut last ", "
-	)
-
-	var stmt *sql.Stmt
-	if stmt, err = tx.PrepareContext(ctx, query); err != nil {
-		return err
-	}
-	defer func() {
-		e := stmt.Close()
-		if err == nil {
-			err = e
-		}
-	}()
-
-	var samples int
-	for _, ts := range data.Timeseries {
-		args := make([]interface{}, columns)
-
-		metric := make(model.Metric, len(ts.Labels))
-		for _, l := range ts.Labels {
-			metric[model.LabelName(l.Name)] = model.LabelValue(l.Value)
-			ch.mWrittenLabels.WithLabelValues(l.Name).Inc()
-		}
-		args[0] = util.MarshalMetric(metric)
-		args[1] = uint64(metric.Fingerprint())
-
-		for _, s := range ts.Samples {
-			args[len(args)-3] = s.Timestamp
-			args[len(args)-2] = s.Value
-			args[len(args)-1] = model.Time(s.Timestamp).Time()
-			_, err = stmt.ExecContext(ctx, args...)
-			if err != nil {
-				return
-			}
-			samples++
-		}
-	}
-
-	if err = tx.Commit(); err != nil {
-		return
-	}
+	ch.mWrittenMetrics.Add(float64(len(newMetrics)))
 	ch.mWrittenSamples.Add(float64(samples))
-	ch.l.Debugf("Wrote %d samples.", samples)
+	ch.l.Debugf("Wrote %d new metrics, %d samples.", len(newMetrics), samples)
 	return
 }
 

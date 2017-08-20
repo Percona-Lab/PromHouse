@@ -18,9 +18,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -47,6 +45,9 @@ func NewClientFromConfig(cfg config.HTTPClientConfig) (*http.Client, error) {
 		DisableKeepAlives:  false,
 		TLSClientConfig:    tlsConfig,
 		DisableCompression: true,
+		// 5 minutes is typically above the maximum sane scrape interval. So we can
+		// use keepalive for all configurations.
+		IdleConnTimeout: 5 * time.Minute,
 	}
 
 	// If a bearer token is provided, create a round tripper that will set the
@@ -70,33 +71,6 @@ func NewClientFromConfig(cfg config.HTTPClientConfig) (*http.Client, error) {
 
 	// Return a new client with the configured round tripper.
 	return NewClient(rt), nil
-}
-
-// NewDeadlineRoundTripper returns a new http.RoundTripper which will time out
-// long running requests.
-func NewDeadlineRoundTripper(timeout time.Duration, proxyURL *url.URL) http.RoundTripper {
-	return &http.Transport{
-		// Set proxy (if null, then becomes a direct connection)
-		Proxy: http.ProxyURL(proxyURL),
-		// We need to disable keepalive, because we set a deadline on the
-		// underlying connection.
-		DisableKeepAlives: true,
-		Dial: func(netw, addr string) (c net.Conn, err error) {
-			start := time.Now()
-
-			c, err = net.DialTimeout(netw, addr, timeout)
-			if err != nil {
-				return nil, err
-			}
-
-			if err = c.SetDeadline(start.Add(timeout)); err != nil {
-				c.Close()
-				return nil, err
-			}
-
-			return c, nil
-		},
-	}
 }
 
 type bearerAuthRoundTripper struct {

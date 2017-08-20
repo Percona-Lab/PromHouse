@@ -329,6 +329,10 @@ func main() {
 	// Wait for reload or termination signals.
 	close(hupReady) // Unblock SIGHUP handler.
 
+	// Set web server to ready.
+	webHandler.Ready()
+	log.Info("Server is Ready to receive requests.")
+
 	term := make(chan os.Signal)
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
 	select {
@@ -362,7 +366,7 @@ func reloadConfig(filename string, logger log.Logger, rls ...Reloadable) (err er
 
 	conf, err := config.LoadFile(filename)
 	if err != nil {
-		return fmt.Errorf("couldn't load configuration (-config.file=%s): %v", filename, err)
+		return fmt.Errorf("couldn't load configuration (--config.file=%s): %v", filename, err)
 	}
 
 	failed := false
@@ -373,7 +377,7 @@ func reloadConfig(filename string, logger log.Logger, rls ...Reloadable) (err er
 		}
 	}
 	if failed {
-		return fmt.Errorf("one or more errors occurred while applying the new configuration (-config.file=%s)", filename)
+		return fmt.Errorf("one or more errors occurred while applying the new configuration (--config.file=%s)", filename)
 	}
 	return nil
 }

@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"sort"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -122,31 +121,6 @@ func (ms Matchers) Match(metric model.Metric) bool {
 		}
 	}
 	return true
-}
-
-// sortTimeSeries sorts timeseries by a value of __name__ label.
-func sortTimeSeries(timeSeries []*prompb.TimeSeries) {
-	sort.Slice(timeSeries, func(i, j int) bool {
-		var nameI, nameJ string
-		for _, l := range timeSeries[i].Labels {
-			if l.Name == model.MetricNameLabel {
-				nameI = l.Value
-				break
-			}
-		}
-		for _, l := range timeSeries[j].Labels {
-			if l.Name == model.MetricNameLabel {
-				nameJ = l.Value
-				break
-			}
-		}
-		return nameI < nameJ
-	})
-}
-
-// sortLabels sorts labels by name.
-func sortLabels(labels []*prompb.Label) {
-	sort.Slice(labels, func(i, j int) bool { return labels[i].Name < labels[j].Name })
 }
 
 // check interfaces

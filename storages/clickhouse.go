@@ -97,7 +97,7 @@ func NewClickHouse(dsn string, database string, init bool) (*ClickHouse, error) 
 			fingerprint UInt64,
 			labels String
 		)
-		ENGINE = MergeTree(date, fingerprint, 8192)`, database))
+		ENGINE = ReplacingMergeTree(date, fingerprint, 8192)`, database))
 
 	for _, q := range queries {
 		l.Infof("Executing: %s", q)
@@ -183,7 +183,7 @@ func NewClickHouse(dsn string, database string, init bool) (*ClickHouse, error) 
 
 func (ch *ClickHouse) runMetricsReloader(ctx context.Context) {
 	ticker := time.Tick(time.Second)
-	q := fmt.Sprintf(`SELECT fingerprint, labels FROM %s.metrics`, ch.database)
+	q := fmt.Sprintf(`SELECT DISTINCT fingerprint, labels FROM %s.metrics`, ch.database)
 	for {
 		metrics := make(map[model.Fingerprint]model.Metric, len(ch.metrics))
 		err := func() error {
@@ -211,12 +211,13 @@ func (ch *ClickHouse) runMetricsReloader(ctx context.Context) {
 			ch.l.Warn(err)
 		}
 
-		ch.l.Debugf("Loaded %d existing metrics.", len(metrics))
 		ch.metricsRW.Lock()
+		n := len(metrics) - len(ch.metrics)
 		for f, m := range metrics {
 			ch.metrics[f] = m
 		}
 		ch.metricsRW.Unlock()
+		ch.l.Debugf("Loaded %d existing metrics, %d were unknown to this instance.", len(metrics), n)
 
 		select {
 		case <-ctx.Done():

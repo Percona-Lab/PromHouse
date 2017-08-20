@@ -180,7 +180,10 @@ func (ch *ClickHouse) runMetricsReloader(ctx context.Context) {
 	ticker := time.Tick(time.Second)
 	q := fmt.Sprintf(`SELECT DISTINCT fingerprint, labels FROM %s.metrics`, ch.database)
 	for {
+		ch.metricsRW.RLock()
 		metrics := make(map[model.Fingerprint]model.Metric, len(ch.metrics))
+		ch.metricsRW.RUnlock()
+
 		err := func() error {
 			rows, err := ch.db.Query(q)
 			if err != nil {

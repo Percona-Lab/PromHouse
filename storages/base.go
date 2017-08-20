@@ -44,17 +44,11 @@ type Storage interface {
 type Query struct {
 	Start    model.Time
 	End      model.Time
-	Matchers []Matcher
+	Matchers Matchers
 }
 
 func (q Query) String() string {
-	res := fmt.Sprintf("[%d,%d,{", q.Start, q.End)
-	matchers := make([]string, len(q.Matchers))
-	for i, m := range q.Matchers {
-		matchers[i] = m.String()
-	}
-	res += strings.Join(matchers, ",") + "}]"
-	return res
+	return fmt.Sprintf("[%d,%d,%s]", q.Start, q.End, q.Matchers)
 }
 
 type MatchType int
@@ -111,6 +105,25 @@ func (m *Matcher) Match(metric model.Metric) bool {
 	}
 }
 
+type Matchers []Matcher
+
+func (ms Matchers) String() string {
+	res := make([]string, len(ms))
+	for i, m := range ms {
+		res[i] = m.String()
+	}
+	return "{" + strings.Join(res, ",") + "}"
+}
+
+func (ms Matchers) Match(metric model.Metric) bool {
+	for _, m := range ms {
+		if !m.Match(metric) {
+			return false
+		}
+	}
+	return true
+}
+
 // sortTimeSeries sorts timeseries by a value of __name__ label.
 func sortTimeSeries(timeSeries []*prompb.TimeSeries) {
 	sort.Slice(timeSeries, func(i, j int) bool {
@@ -139,6 +152,7 @@ func sortLabels(labels []*prompb.Label) {
 // check interfaces
 var (
 	_ fmt.Stringer = Query{}
-	_ fmt.Stringer = Matcher{}
 	_ fmt.Stringer = MatchType(0)
+	_ fmt.Stringer = Matcher{}
+	_ fmt.Stringer = Matchers{}
 )

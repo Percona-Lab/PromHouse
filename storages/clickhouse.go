@@ -250,15 +250,20 @@ func (ch *ClickHouse) Describe(c chan<- *prometheus.Desc) {
 }
 
 func (ch *ClickHouse) Collect(c chan<- prometheus.Metric) {
-	query := fmt.Sprintf(`SELECT COUNT(*) FROM %s.metrics UNION ALL SELECT COUNT(*) FROM %s.samples`,
-		ch.database, ch.database)
-	var metrics, samples uint64
-	if err := ch.db.QueryRow(query).Scan(&metrics, &samples); err != nil {
+	var count uint64
+	query := fmt.Sprintf(`SELECT COUNT(*) FROM %s.metrics`, ch.database)
+	if err := ch.db.QueryRow(query).Scan(&count); err != nil {
 		ch.l.Error(err)
 		return
 	}
-	ch.mMetricsCurrent.Set(float64(metrics))
-	ch.mSamplesCurrent.Set(float64(samples))
+	ch.mMetricsCurrent.Set(float64(count))
+
+	query = fmt.Sprintf(`SELECT COUNT(*) FROM %s.samples`, ch.database)
+	if err := ch.db.QueryRow(query).Scan(&count); err != nil {
+		ch.l.Error(err)
+		return
+	}
+	ch.mSamplesCurrent.Set(float64(count))
 
 	ch.mMetricsCurrent.Collect(c)
 	ch.mSamplesCurrent.Collect(c)

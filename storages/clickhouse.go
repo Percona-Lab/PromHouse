@@ -106,12 +106,37 @@ func NewClickHouse(dsn string, database string, init bool) (*ClickHouse, error) 
 		}
 	}
 
+	// load existing metrics
+	metrics := make(map[model.Fingerprint]model.Metric, 8192)
+	q := fmt.Sprintf(`SELECT fingerprint, labels FROM %s.metrics`, database)
+	rows, err := db.Query(q)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var f uint64
+	var b []byte
+	for rows.Next() {
+		if err = rows.Scan(&f, &b); err != nil {
+			return nil, err
+		}
+		var ls model.LabelSet
+		if err = ls.UnmarshalJSON(b); err != nil {
+			return nil, err
+		}
+		metrics[model.Fingerprint(f)] = model.Metric(ls)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	l.Debugf("Loaded %d existing metrics.", len(metrics))
+
 	ch := &ClickHouse{
 		db:       db,
 		l:        l,
 		database: database,
 
-		metrics: make(map[model.Fingerprint]model.Metric, 8192),
+		metrics: metrics,
 
 		mMetricsCurrent: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: namespace,
@@ -441,7 +466,7 @@ func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 
 	ch.mWrittenMetrics.Add(float64(len(newMetrics)))
 	ch.mWrittenSamples.Add(float64(samples))
-	ch.l.Debugf("Wrote %s new metrics, %d samples.", len(newMetrics), samples)
+	ch.l.Debugf("Wrote %d new metrics, %d samples.", len(newMetrics), samples)
 	return
 }
 

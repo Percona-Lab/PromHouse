@@ -56,6 +56,8 @@ type ClickHouse struct {
 }
 
 func NewClickHouse(dsn string, database string, init bool) (*ClickHouse, error) {
+	l := logrus.WithField("component", "clickhouse")
+
 	db, err := sql.Open("clickhouse", dsn)
 	if err != nil {
 		return nil, err
@@ -85,6 +87,7 @@ func NewClickHouse(dsn string, database string, init bool) (*ClickHouse, error) 
 		ENGINE = MergeTree(__date__, (__fingerprint__, __ts__), 8192)`, database))
 
 	for _, q := range queries {
+		l.Infof("Executing: %s", q)
 		if _, err = db.Exec(q); err != nil {
 			return nil, err
 		}
@@ -92,7 +95,7 @@ func NewClickHouse(dsn string, database string, init bool) (*ClickHouse, error) 
 
 	ch := &ClickHouse{
 		db:       db,
-		l:        logrus.WithField("component", "clickhouse"),
+		l:        l,
 		database: database,
 		// labels:   labels,
 
@@ -348,6 +351,7 @@ func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 		return
 	}
 	ch.mWrittenSamples.Add(float64(samples))
+	ch.l.Debugf("Wrote %d samples.", samples)
 	return
 }
 

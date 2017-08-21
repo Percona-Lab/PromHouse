@@ -242,20 +242,39 @@ func (ch *ClickHouse) Describe(c chan<- *prometheus.Desc) {
 }
 
 func (ch *ClickHouse) Collect(c chan<- prometheus.Metric) {
-	var count uint64
-	query := fmt.Sprintf(`SELECT COUNT(*) FROM %s.metrics`, ch.database)
-	if err := ch.db.QueryRow(query).Scan(&count); err != nil {
+	// TODO remove this when https://github.com/f1yegor/clickhouse_exporter/pull/12 is merged
+	// 'SELECT COUNT(*) FROM samples' is slow
+	query := `
+	SELECT table, sum(rows) AS rows
+		FROM system.parts
+		WHERE database = ? AND active
+		GROUP BY table`
+	rows, err := ch.db.Query(query, ch.database)
+	if err != nil {
 		ch.l.Error(err)
 		return
 	}
-	ch.mMetricsCurrent.Set(float64(count))
+	defer rows.Close()
 
-	query = fmt.Sprintf(`SELECT COUNT(*) FROM %s.samples`, ch.database)
-	if err := ch.db.QueryRow(query).Scan(&count); err != nil {
-		ch.l.Error(err)
-		return
+	var table string
+	var sum uint64
+	for rows.Next() {
+		if err = rows.Scan(&table, &sum); err != nil {
+			ch.l.Error(err)
+			return
+		}
+		switch table {
+		case "metrics":
+			ch.mMetricsCurrent.Set(float64(sum))
+		case "samples":
+			ch.mSamplesCurrent.Set(float64(sum))
+		default:
+			ch.l.Errorf("unexpected table %q", table)
+		}
 	}
-	ch.mSamplesCurrent.Set(float64(count))
+	if err = rows.Err(); err != nil {
+		ch.l.Error(err)
+	}
 
 	ch.mMetricsCurrent.Collect(c)
 	ch.mSamplesCurrent.Collect(c)

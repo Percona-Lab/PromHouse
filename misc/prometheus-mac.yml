@@ -17,6 +17,10 @@ scrape_configs:
     static_configs:
       - targets: ['docker.for.mac.localhost:7782']
 
+  - job_name: node-exporter
+    static_configs:
+      - targets: ['docker.for.mac.localhost:9100']
+
 remote_read:
   - url: http://docker.for.mac.localhost:7781/read
 

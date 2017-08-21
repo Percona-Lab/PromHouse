@@ -14,14 +14,17 @@ install-race:
 test: install
 	go test -v $(PACKAGES)
 
+test-race: install-race
+	go test -v -race $(PACKAGES)
+
 bench: install
 	go test -bench=. -benchtime=10s -benchmem -v $(PACKAGES)
 
 run: install
-	promhouse
+	promhouse -debug
 
 run-race: install-race
-	promhouse
+	promhouse -debug
 
 cover: install
 	gocoverutil test -v $(PACKAGES)

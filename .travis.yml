@@ -15,7 +15,9 @@ before_script:
   - docker-compose -f misc/docker-compose.yml -p promhouse up -d
 
 script:
-  - make init cover
+  - make init
+  - make test-race
+  - make cover
 
 after_success:
   - bash <(curl -s https://codecov.io/bash) -X fix

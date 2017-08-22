@@ -35,6 +35,8 @@ import (
 const (
 	namespace = "promhouse"
 	subsystem = "clickhouse"
+
+	sampleRowSize = 2 + 8 + 8 + 8
 )
 
 // ClickHouse implements storage interface for the ClickHouse.
@@ -46,8 +48,10 @@ type ClickHouse struct {
 	metrics   map[model.Fingerprint]model.Metric
 	metricsRW sync.RWMutex
 
-	mMetricsCurrent prometheus.Gauge
-	mSamplesCurrent prometheus.Gauge
+	mMetricsCurrent             prometheus.Gauge
+	mMetricsCurrentBytes        prometheus.Gauge
+	mMetricsCurrentVirtualBytes prometheus.Gauge
+	mSamplesCurrent             prometheus.Gauge
 
 	mReads      prometheus.Summary
 	mReadErrors *prometheus.CounterVec
@@ -76,6 +80,7 @@ func NewClickHouse(dsn string, database string, init bool) (*ClickHouse, error) 
 	queries = append(queries, fmt.Sprintf(`CREATE DATABASE IF NOT EXISTS %s`, database))
 
 	// TODO use GraphiteMergeTree?
+	// change sampleRowSize is you change this table
 	queries = append(queries, fmt.Sprintf(`
 		CREATE TABLE IF NOT EXISTS %s.samples (
 			date Date,
@@ -111,7 +116,19 @@ func NewClickHouse(dsn string, database string, init bool) (*ClickHouse, error) 
 			Namespace: namespace,
 			Subsystem: subsystem,
 			Name:      "metrics_current",
-			Help:      "Current number of stored metrics.",
+			Help:      "Current number of stored metrics (rows).",
+		}),
+		mMetricsCurrentBytes: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "metrics_current_bytes",
+			Help:      "Current number of stored metrics (bytes).",
+		}),
+		mMetricsCurrentVirtualBytes: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "metrics_current_virtual_bytes",
+			Help:      "Current number of stored metrics (virtual uncompressed bytes).",
 		}),
 		mSamplesCurrent: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: namespace,
@@ -230,6 +247,8 @@ func makeMetric(labels []*prompb.Label) model.Metric {
 
 func (ch *ClickHouse) Describe(c chan<- *prometheus.Desc) {
 	ch.mMetricsCurrent.Describe(c)
+	ch.mMetricsCurrentBytes.Describe(c)
+	ch.mMetricsCurrentVirtualBytes.Describe(c)
 	ch.mSamplesCurrent.Describe(c)
 
 	ch.mReads.Describe(c)
@@ -245,7 +264,7 @@ func (ch *ClickHouse) Collect(c chan<- prometheus.Metric) {
 	// TODO remove this when https://github.com/f1yegor/clickhouse_exporter/pull/12 is merged
 	// 'SELECT COUNT(*) FROM samples' is slow
 	query := `
-	SELECT table, sum(rows) AS rows
+	SELECT table, sum(rows) AS rows, sum(bytes) AS bytes, (? * rows) AS virtual_bytes
 		FROM system.parts
 		WHERE database = ? AND active
 		GROUP BY table`
@@ -257,17 +276,20 @@ func (ch *ClickHouse) Collect(c chan<- prometheus.Metric) {
 	defer rows.Close()
 
 	var table string
-	var sum uint64
+	var r, b, vb uint64
 	for rows.Next() {
-		if err = rows.Scan(&table, &sum); err != nil {
+		if err = rows.Scan(&table, &r, &b, &vb); err != nil {
 			ch.l.Error(err)
 			return
 		}
 		switch table {
 		case "metrics":
-			ch.mMetricsCurrent.Set(float64(sum))
+			ch.mMetricsCurrent.Set(float64(r))
+			ch.mMetricsCurrentBytes.Set(float64(b))
+			ch.mMetricsCurrentVirtualBytes.Set(float64(vb))
 		case "samples":
-			ch.mSamplesCurrent.Set(float64(sum))
+			ch.mSamplesCurrent.Set(float64(r))
+			// ignore b and vb
 		default:
 			ch.l.Errorf("unexpected table %q", table)
 		}
@@ -277,6 +299,8 @@ func (ch *ClickHouse) Collect(c chan<- prometheus.Metric) {
 	}
 
 	ch.mMetricsCurrent.Collect(c)
+	ch.mMetricsCurrentBytes.Collect(c)
+	ch.mMetricsCurrentVirtualBytes.Collect(c)
 	ch.mSamplesCurrent.Collect(c)
 
 	ch.mReads.Collect(c)

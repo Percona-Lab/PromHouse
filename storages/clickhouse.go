@@ -49,9 +49,9 @@ type ClickHouse struct {
 	metricsRW sync.RWMutex
 
 	mMetricsCurrent             prometheus.Gauge
-	mMetricsCurrentBytes        prometheus.Gauge
-	mMetricsCurrentVirtualBytes prometheus.Gauge
 	mSamplesCurrent             prometheus.Gauge
+	mSamplesCurrentBytes        prometheus.Gauge
+	mSamplesCurrentVirtualBytes prometheus.Gauge
 
 	mReads      prometheus.Summary
 	mReadErrors *prometheus.CounterVec
@@ -118,23 +118,23 @@ func NewClickHouse(dsn string, database string, init bool) (*ClickHouse, error) 
 			Name:      "metrics_current",
 			Help:      "Current number of stored metrics (rows).",
 		}),
-		mMetricsCurrentBytes: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: namespace,
-			Subsystem: subsystem,
-			Name:      "metrics_current_bytes",
-			Help:      "Current number of stored metrics (bytes).",
-		}),
-		mMetricsCurrentVirtualBytes: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: namespace,
-			Subsystem: subsystem,
-			Name:      "metrics_current_virtual_bytes",
-			Help:      "Current number of stored metrics (virtual uncompressed bytes).",
-		}),
 		mSamplesCurrent: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: namespace,
 			Subsystem: subsystem,
 			Name:      "samples_current",
 			Help:      "Current number of stored samples.",
+		}),
+		mSamplesCurrentBytes: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "samples_current_bytes",
+			Help:      "Current number of stored samples (bytes).",
+		}),
+		mSamplesCurrentVirtualBytes: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "samples_current_virtual_bytes",
+			Help:      "Current number of stored samples (virtual uncompressed bytes).",
 		}),
 
 		mReads: prometheus.NewSummary(prometheus.SummaryOpts{
@@ -247,9 +247,9 @@ func makeMetric(labels []*prompb.Label) model.Metric {
 
 func (ch *ClickHouse) Describe(c chan<- *prometheus.Desc) {
 	ch.mMetricsCurrent.Describe(c)
-	ch.mMetricsCurrentBytes.Describe(c)
-	ch.mMetricsCurrentVirtualBytes.Describe(c)
 	ch.mSamplesCurrent.Describe(c)
+	ch.mSamplesCurrentBytes.Describe(c)
+	ch.mSamplesCurrentVirtualBytes.Describe(c)
 
 	ch.mReads.Describe(c)
 	ch.mReadErrors.Describe(c)
@@ -285,11 +285,11 @@ func (ch *ClickHouse) Collect(c chan<- prometheus.Metric) {
 		switch table {
 		case "metrics":
 			ch.mMetricsCurrent.Set(float64(r))
-			ch.mMetricsCurrentBytes.Set(float64(b))
-			ch.mMetricsCurrentVirtualBytes.Set(float64(vb))
+			// ignore b and vb
 		case "samples":
 			ch.mSamplesCurrent.Set(float64(r))
-			// ignore b and vb
+			ch.mSamplesCurrentBytes.Set(float64(b))
+			ch.mSamplesCurrentVirtualBytes.Set(float64(vb))
 		default:
 			ch.l.Errorf("unexpected table %q", table)
 		}
@@ -299,9 +299,9 @@ func (ch *ClickHouse) Collect(c chan<- prometheus.Metric) {
 	}
 
 	ch.mMetricsCurrent.Collect(c)
-	ch.mMetricsCurrentBytes.Collect(c)
-	ch.mMetricsCurrentVirtualBytes.Collect(c)
 	ch.mSamplesCurrent.Collect(c)
+	ch.mSamplesCurrentBytes.Collect(c)
+	ch.mSamplesCurrentVirtualBytes.Collect(c)
 
 	ch.mReads.Collect(c)
 	ch.mReadErrors.Collect(c)

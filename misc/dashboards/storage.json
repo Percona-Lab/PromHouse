@@ -85,7 +85,6 @@
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "Currently stored",
-              "metric": "",
               "refId": "A",
               "step": 4
             }
@@ -153,7 +152,7 @@
           "renderer": "flot",
           "seriesOverrides": [
             {
-              "alias": "Parts",
+              "alias": "Compression ratio",
               "yaxis": 2
             }
           ],
@@ -163,7 +162,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "clickhouse_table_parts_bytes{table=\"samples\"}",
+              "expr": "promhouse_clickhouse_samples_current_bytes",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "Size",
@@ -171,11 +170,19 @@
               "step": 4
             },
             {
-              "expr": "clickhouse_table_parts_count{table=\"samples\"}",
+              "expr": "promhouse_clickhouse_samples_current_virtual_bytes",
               "format": "time_series",
               "intervalFactor": 2,
-              "legendFormat": "Parts",
+              "legendFormat": "Virtual bytes",
               "refId": "B",
+              "step": 4
+            },
+            {
+              "expr": "promhouse_clickhouse_samples_current_virtual_bytes / promhouse_clickhouse_samples_current_bytes",
+              "format": "time_series",
+              "intervalFactor": 2,
+              "legendFormat": "Compression ratio",
+              "refId": "C",
               "step": 4
             }
           ],
@@ -268,7 +275,6 @@
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "Currently stored",
-              "metric": "",
               "refId": "A",
               "step": 4
             }

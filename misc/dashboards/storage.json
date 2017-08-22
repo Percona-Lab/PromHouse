@@ -27,6 +27,12 @@
       "id": "prometheus",
       "name": "Prometheus",
       "version": "1.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "singlestat",
+      "name": "Singlestat",
+      "version": ""
     }
   ],
   "annotations": {
@@ -154,6 +160,10 @@
             {
               "alias": "Compression ratio",
               "yaxis": 2
+            },
+            {
+              "alias": "Parts",
+              "yaxis": 2
             }
           ],
           "spaceLength": 10,
@@ -162,27 +172,19 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "promhouse_clickhouse_samples_current_bytes",
+              "expr": "clickhouse_table_parts_bytes{table=\"samples\"}",
               "format": "time_series",
               "intervalFactor": 2,
-              "legendFormat": "Size",
+              "legendFormat": "Bytes",
               "refId": "A",
               "step": 4
             },
             {
-              "expr": "promhouse_clickhouse_samples_current_virtual_bytes",
+              "expr": "clickhouse_table_parts_count{table=\"samples\"}",
               "format": "time_series",
               "intervalFactor": 2,
-              "legendFormat": "Virtual bytes",
+              "legendFormat": "Parts",
               "refId": "B",
-              "step": 4
-            },
-            {
-              "expr": "promhouse_clickhouse_samples_current_virtual_bytes / promhouse_clickhouse_samples_current_bytes",
-              "format": "time_series",
-              "intervalFactor": 2,
-              "legendFormat": "Compression ratio",
-              "refId": "C",
               "step": 4
             }
           ],
@@ -221,6 +223,174 @@
               "show": true
             }
           ]
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "Prometheus",
+          "fill": 1,
+          "id": 9,
+          "legend": {
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "show": true,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "links": [],
+          "nullPointMode": "null",
+          "percentage": false,
+          "pointradius": 5,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [
+            {
+              "alias": "Compression ratio",
+              "yaxis": 2
+            }
+          ],
+          "spaceLength": 10,
+          "span": 9,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "expr": "promhouse_clickhouse_samples_current_bytes",
+              "format": "time_series",
+              "intervalFactor": 2,
+              "legendFormat": "Bytes",
+              "refId": "A",
+              "step": 4
+            },
+            {
+              "expr": "promhouse_clickhouse_samples_current_virtual_bytes",
+              "format": "time_series",
+              "intervalFactor": 2,
+              "legendFormat": "Virtual bytes",
+              "refId": "B",
+              "step": 4
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "Samples table",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "decbytes",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": "0",
+              "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            }
+          ]
+        },
+        {
+          "cacheTimeout": null,
+          "colorBackground": false,
+          "colorValue": false,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "datasource": "Prometheus",
+          "decimals": null,
+          "description": "",
+          "format": "short",
+          "gauge": {
+            "maxValue": 100,
+            "minValue": 0,
+            "show": false,
+            "thresholdLabels": false,
+            "thresholdMarkers": true
+          },
+          "id": 8,
+          "interval": null,
+          "links": [],
+          "mappingType": 1,
+          "mappingTypes": [
+            {
+              "name": "value to text",
+              "value": 1
+            },
+            {
+              "name": "range to text",
+              "value": 2
+            }
+          ],
+          "maxDataPoints": 100,
+          "nullPointMode": "connected",
+          "nullText": null,
+          "postfix": ":1",
+          "postfixFontSize": "100%",
+          "prefix": "",
+          "prefixFontSize": "50%",
+          "rangeMaps": [
+            {
+              "from": "null",
+              "text": "N/A",
+              "to": "null"
+            }
+          ],
+          "span": 3,
+          "sparkline": {
+            "fillColor": "rgba(31, 118, 189, 0.18)",
+            "full": false,
+            "lineColor": "rgb(31, 120, 193)",
+            "show": true
+          },
+          "tableColumn": "",
+          "targets": [
+            {
+              "expr": "promhouse_clickhouse_samples_current_virtual_bytes / promhouse_clickhouse_samples_current_bytes",
+              "format": "time_series",
+              "intervalFactor": 2,
+              "legendFormat": "",
+              "refId": "A",
+              "step": 40
+            }
+          ],
+          "thresholds": "",
+          "title": "Compression ratio",
+          "type": "singlestat",
+          "valueFontSize": "100%",
+          "valueMaps": [
+            {
+              "op": "=",
+              "text": "N/A",
+              "value": "null"
+            }
+          ],
+          "valueName": "current"
         }
       ],
       "repeat": null,
@@ -355,7 +525,7 @@
               "expr": "clickhouse_table_parts_bytes{table=\"metrics\"}",
               "format": "time_series",
               "intervalFactor": 2,
-              "legendFormat": "Size",
+              "legendFormat": "Bytes",
               "refId": "A",
               "step": 4
             },

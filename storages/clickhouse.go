@@ -268,7 +268,7 @@ func (ch *ClickHouse) Collect(c chan<- prometheus.Metric) {
 		FROM system.parts
 		WHERE database = ? AND active
 		GROUP BY table`
-	rows, err := ch.db.Query(query, ch.database)
+	rows, err := ch.db.Query(query, sampleRowSize, ch.database)
 	if err != nil {
 		ch.l.Error(err)
 		return

@@ -20,6 +20,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -346,20 +347,20 @@ func (ch *ClickHouse) Read(ctx context.Context, queries []Query) (res *prompb.Re
 			continue
 		}
 
-		// TODO check why uint64 is not properly handled, create an issue
-		var fs string
-		for f := range fingerprints {
-			fs += fmt.Sprintf("%d, ", f)
-		}
-
+		placeholders := strings.Repeat("?, ", len(fingerprints))
 		query := fmt.Sprintf(`
 			SELECT fingerprint, timestamp, value
 				FROM %s.samples
 				WHERE fingerprint IN (%s) AND timestamp >= ? AND timestamp <= ?
 				ORDER BY fingerprint, timestamp`,
-			ch.database, fs[:len(fs)-2], // cut last ", "
+			ch.database, placeholders[:len(placeholders)-2], // cut last ", "
 		)
-		args := []interface{}{int64(q.Start), int64(q.End)}
+		args := make([]interface{}, 0, len(fingerprints)+2)
+		for f := range fingerprints {
+			args = append(args, f)
+		}
+		args = append(args, int64(q.Start))
+		args = append(args, int64(q.End))
 		err = func() error {
 			rows, err := ch.db.Query(query, args...)
 			if err != nil {

@@ -30,8 +30,6 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/sirupsen/logrus"
-
-	"github.com/Percona-Lab/PromHouse/util"
 )
 
 const (
@@ -487,7 +485,7 @@ func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 			args[0] = model.Now().Time()
 			for _, f := range newMetrics {
 				args[1] = uint64(f)
-				args[2] = util.MarshalMetric(metrics[f])
+				args[2] = marshalMetric(metrics[f])
 				ch.l.Debugf("%s %v", query, args)
 				if _, err = stmt.ExecContext(ctx, args...); err != nil {
 					return errors.WithStack(err)

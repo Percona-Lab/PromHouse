@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-package util
+package storages
 
 import (
 	"encoding/json"
@@ -37,7 +37,7 @@ func TestMarshalMetric(t *testing.T) {
 	} {
 		expectedB, err := json.Marshal(metric)
 		require.NoError(t, err)
-		actualB := MarshalMetric(metric)
+		actualB := marshalMetric(metric)
 		actual := make(model.Metric)
 		err = json.Unmarshal(actualB, &actual)
 		assert.NoError(t, err)
@@ -45,8 +45,10 @@ func TestMarshalMetric(t *testing.T) {
 	}
 }
 
-var metric = model.Metric{"__name__": "normal", "instance": "foo", "job": "bar"}
-var sink []byte
+var (
+	metric = model.Metric{"__name__": "normal", "instance": "foo", "job": "bar"}
+	sink   []byte
+)
 
 func BenchmarkMarshalJSON(b *testing.B) {
 	var err error
@@ -63,7 +65,7 @@ func BenchmarkMarshalJSON(b *testing.B) {
 func BenchmarkMarshalMetric(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		sink = MarshalMetric(metric)
+		sink = marshalMetric(metric)
 	}
 	b.StopTimer()
 }

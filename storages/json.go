@@ -14,16 +14,16 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-package util
+package storages
 
 import (
 	"github.com/prometheus/common/model"
 )
 
-// MarshalMetric marshals Prometheus metric into JSON.
+// marshalMetric marshals Prometheus metric into JSON.
 // It is significantly faster then json.Marshal.
 // It is compatible with ClickHouse JSON functions: https://clickhouse.yandex/docs/en/functions/json_functions.html
-func MarshalMetric(m model.Metric) []byte {
+func marshalMetric(m model.Metric) []byte {
 	b := make([]byte, 0, 128)
 	b = append(b, '{')
 	for k, v := range m {

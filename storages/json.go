@@ -17,9 +17,14 @@
 package storages
 
 import (
+	"encoding/json"
+	"sort"
+
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/prometheus/prompb"
 )
 
+// TODO remove
 // marshalMetric marshals Prometheus metric into JSON.
 // It is significantly faster then json.Marshal.
 // It is compatible with ClickHouse JSON functions: https://clickhouse.yandex/docs/en/functions/json_functions.html
@@ -53,4 +58,58 @@ func marshalMetric(m model.Metric) []byte {
 
 	b[len(b)-1] = '}'
 	return b
+}
+
+// marshalLabels marshals Prometheus labels into JSON.
+// It preserves an order. It is also significantly faster then json.Marshal.
+// It is compatible with ClickHouse JSON functions: https://clickhouse.yandex/docs/en/functions/json_functions.html
+func marshalLabels(labels []*prompb.Label) []byte {
+	b := make([]byte, 0, 128)
+	b = append(b, '{')
+	for _, l := range labels {
+		// add label name which can't contain runes that should be escaped
+		b = append(b, '"')
+		b = append(b, l.Name...)
+		b = append(b, '"', ':', '"')
+
+		// add label value while escaping some runes
+		// FIXME we don't handle Unicode runes correctly here (first byte >= 0x80)
+		for _, c := range []byte(l.Value) {
+			switch c {
+			case '\\', '"':
+				b = append(b, '\\', c)
+			case '\n':
+				b = append(b, '\\', 'n')
+			case '\r':
+				b = append(b, '\\', 'r')
+			case '\t':
+				b = append(b, '\\', 't')
+			default:
+				b = append(b, c)
+			}
+		}
+
+		b = append(b, '"', ',')
+	}
+
+	b[len(b)-1] = '}'
+	return b
+}
+
+// unmarshalLabels unmarshals JSON into Prometheus labels.
+// TODO optimize?
+func unmarshalLabels(b []byte) ([]*prompb.Label, error) {
+	m := make(map[string]string)
+	if err := json.Unmarshal(b, &m); err != nil {
+		return nil, err
+	}
+	res := make([]*prompb.Label, 0, len(m))
+	for n, v := range m {
+		res = append(res, &prompb.Label{
+			Name:  n,
+			Value: v,
+		})
+	}
+	sort.Slice(res, func(i, j int) bool { return res[i].Name < res[j].Name })
+	return res, nil
 }

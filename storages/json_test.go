@@ -21,37 +21,69 @@ import (
 	"testing"
 
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/prometheus/prompb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestMarshalMetric(t *testing.T) {
-	for _, metric := range []model.Metric{
-		{"__name__": "normal", "instance": "foo", "job": "bar"},
-		{"__name__": "funny_1", "label": ""},
-		{"__name__": "funny_2", "label": "'`\"\\"},
-		{"__name__": "funny_3", "label": "''``\"\"\\\\"},
-		{"__name__": "funny_4", "label": "'''```\"\"\"\\\\\\"},
-		{"__name__": "funny_5", "label": `\ \\ \\\\ \\\\`},
-		{"__name__": "funny_6", "label": "🆗"},
+func TestMarshalMetricsAndLabels(t *testing.T) {
+	for _, labels := range [][]*prompb.Label{
+		{
+			&prompb.Label{Name: "__name__", Value: "normal"},
+			&prompb.Label{Name: "instance", Value: "foo"},
+			&prompb.Label{Name: "job", Value: "bar"},
+		}, {
+			&prompb.Label{Name: "__name__", Value: "funny_1"},
+			&prompb.Label{Name: "label", Value: ""},
+		}, {
+			&prompb.Label{Name: "__name__", Value: "funny_2"},
+			&prompb.Label{Name: "label", Value: "'`\"\\"},
+		}, {
+			&prompb.Label{Name: "__name__", Value: "funny_3"},
+			&prompb.Label{Name: "label", Value: "''``\"\"\\\\"},
+		}, {
+			&prompb.Label{Name: "__name__", Value: "funny_4"},
+			&prompb.Label{Name: "label", Value: "'''```\"\"\"\\\\\\"},
+		}, {
+			&prompb.Label{Name: "__name__", Value: "funny_5"},
+			&prompb.Label{Name: "label", Value: `\ \\ \\\\ \\\\`},
+		}, {
+			&prompb.Label{Name: "__name__", Value: "funny_6"},
+			&prompb.Label{Name: "label", Value: "🆗"},
+		},
 	} {
-		expectedB, err := json.Marshal(metric)
+		metric := makeMetric(labels)
+		b1 := marshalMetric(metric)
+		b2 := marshalLabels(labels)
+		b3, err := json.Marshal(metric)
 		require.NoError(t, err)
-		actualB := marshalMetric(metric)
-		actual := make(model.Metric)
-		err = json.Unmarshal(actualB, &actual)
-		assert.NoError(t, err)
-		require.Equal(t, metric, actual, "\nexpected:\n\t%s\nactual:\n\t%s", expectedB, actualB)
+
+		m1 := make(model.Metric)
+		require.NoError(t, json.Unmarshal(b1, &m1))
+		m2 := make(model.Metric)
+		require.NoError(t, json.Unmarshal(b2, &m2))
+		m3 := make(model.Metric)
+		require.NoError(t, json.Unmarshal(b3, &m3))
+		assert.Equal(t, m3, m1)
+		assert.Equal(t, m3, m2)
+
+		l1, err := unmarshalLabels(b1)
+		require.NoError(t, err)
+		l2, err := unmarshalLabels(b2)
+		require.NoError(t, err)
+		l3, err := unmarshalLabels(b3)
+		require.NoError(t, err)
+		assert.Equal(t, labels, l1)
+		assert.Equal(t, labels, l2)
+		assert.Equal(t, labels, l3)
 	}
 }
 
-var (
-	metric = model.Metric{"__name__": "normal", "instance": "foo", "job": "bar"}
-	sink   []byte
-)
+var sink []byte
 
 func BenchmarkMarshalJSON(b *testing.B) {
 	var err error
+	metric := makeMetric(labelsB)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -63,9 +95,16 @@ func BenchmarkMarshalJSON(b *testing.B) {
 }
 
 func BenchmarkMarshalMetric(b *testing.B) {
+	metric := makeMetric(labelsB)
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		sink = marshalMetric(metric)
 	}
-	b.StopTimer()
+}
+
+func BenchmarkMarshalLabels(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		sink = marshalLabels(labelsB)
+	}
 }

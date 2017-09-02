@@ -60,11 +60,10 @@ func marshalMetric(m model.Metric) []byte {
 	return b
 }
 
-// marshalLabels marshals Prometheus labels into JSON.
+// marshalLabels marshals Prometheus labels into JSON, appending it to b.
 // It preserves an order. It is also significantly faster then json.Marshal.
 // It is compatible with ClickHouse JSON functions: https://clickhouse.yandex/docs/en/functions/json_functions.html
-func marshalLabels(labels []*prompb.Label) []byte {
-	b := make([]byte, 0, 128)
+func marshalLabels(labels []*prompb.Label, b []byte) []byte {
 	b = append(b, '{')
 	for _, l := range labels {
 		// add label name which can't contain runes that should be escaped

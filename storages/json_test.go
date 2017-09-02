@@ -54,7 +54,7 @@ func TestMarshalMetricsAndLabels(t *testing.T) {
 	} {
 		metric := makeMetric(labels)
 		b1 := marshalMetric(metric)
-		b2 := marshalLabels(labels)
+		b2 := marshalLabels(labels, nil)
 		b3, err := json.Marshal(metric)
 		require.NoError(t, err)
 
@@ -105,6 +105,6 @@ func BenchmarkMarshalMetric(b *testing.B) {
 
 func BenchmarkMarshalLabels(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		sink = marshalLabels(labelsB)
+		sink = marshalLabels(labelsB, sink[:0])
 	}
 }

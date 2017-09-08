@@ -89,7 +89,7 @@ func runPromServer(ctx context.Context) {
 	handleFunc("/read", promAPI.Read)
 	handleFunc("/write", promAPI.Write)
 
-	l.Infof("Starting server on http://%s/", *promAddrF)
+	l.Printf("Starting server on http://%s/", *promAddrF)
 
 	server := &http.Server{
 		Addr:     *promAddrF,
@@ -100,7 +100,7 @@ func runPromServer(ctx context.Context) {
 		if err := server.ListenAndServe(); err != http.ErrServerClosed {
 			l.Panic(err)
 		}
-		l.Info("Server stopped.")
+		l.Print("Server stopped.")
 	}()
 
 	<-ctx.Done()
@@ -142,7 +142,7 @@ func runDebugServer(ctx context.Context) {
 	http.HandleFunc("/debug", func(rw http.ResponseWriter, req *http.Request) {
 		rw.Write(buf.Bytes())
 	})
-	l.Infof("Starting server on http://%s/debug\nRegistered handlers:\n\t%s", *debugAddrF, strings.Join(handlers, "\n\t"))
+	l.Printf("Starting server on http://%s/debug\nRegistered handlers:\n\t%s", *debugAddrF, strings.Join(handlers, "\n\t"))
 
 	server := &http.Server{
 		Addr:     *debugAddrF,
@@ -152,7 +152,7 @@ func runDebugServer(ctx context.Context) {
 		if err := server.ListenAndServe(); err != http.ErrServerClosed {
 			l.Panic(err)
 		}
-		l.Info("Server stopped.")
+		l.Print("Server stopped.")
 	}()
 
 	<-ctx.Done()
@@ -167,13 +167,14 @@ func main() {
 	log.SetFlags(0)
 	log.SetPrefix("stdlog: ")
 	flag.Parse()
+	logrus.SetLevel(logrus.WarnLevel)
 	if *debugF {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
 
 	l := logrus.WithField("component", "main")
 	ctx, cancel := context.WithCancel(context.Background())
-	defer l.Info("Done.")
+	defer l.Print("Done.")
 
 	// handle termination signals: first one gracefully, force exit on the second one
 	signals := make(chan os.Signal, 1)

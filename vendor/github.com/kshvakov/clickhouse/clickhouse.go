@@ -7,8 +7,6 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
-	"net"
-	"reflect"
 	"regexp"
 	"sync"
 	"time"
@@ -16,7 +14,6 @@ import (
 	"github.com/kshvakov/clickhouse/lib/binary"
 	"github.com/kshvakov/clickhouse/lib/data"
 	"github.com/kshvakov/clickhouse/lib/protocol"
-	"github.com/kshvakov/clickhouse/lib/types"
 )
 
 var (
@@ -112,7 +109,7 @@ func (ch *clickhouse) beginTx(ctx context.Context, opts txOptions) (*clickhouse,
 	case ch.conn.closed:
 		return nil, driver.ErrBadConn
 	}
-	if finish := ch.watchCancel(ctx); finish != nil {
+	if finish := ch.watchCancel(ctx, ch.writeTimeout); finish != nil {
 		defer finish()
 	}
 	ch.block = nil
@@ -163,54 +160,10 @@ func (ch *clickhouse) Rollback() error {
 
 func (ch *clickhouse) CheckNamedValue(nv *driver.NamedValue) error {
 	switch v := nv.Value.(type) {
-	case IP, *types.Array, UUID:
-		return nil
-	case int8, int16, int32, int64, uint8, uint16, uint32, uint64, float32, float64, string, time.Time:
-		return nil
-	case
-		[]int, []int8, []int16, []int32, []int64,
-		[]uint, []uint8, []uint16, []uint32, []uint64,
-		[]float32, []float64,
-		[]string:
-		nv.Value = types.NewArray(v)
-	case net.IP:
-		nv.Value = IP(v)
-	case driver.Valuer:
-		value, err := v.Value()
-		if err != nil {
-			return err
-		}
-		nv.Value = value
-	default:
-		switch value := reflect.ValueOf(nv.Value); value.Kind() {
-		case reflect.Bool:
-			nv.Value = uint8(0)
-			if value.Bool() {
-				nv.Value = uint8(1)
-			}
-		case reflect.Int8:
-			nv.Value = int8(value.Int())
-		case reflect.Int16:
-			nv.Value = int16(value.Int())
-		case reflect.Int32:
-			nv.Value = int32(value.Int())
-		case reflect.Int64:
-			nv.Value = value.Int()
-		case reflect.Uint8:
-			nv.Value = uint8(value.Uint())
-		case reflect.Uint16:
-			nv.Value = uint16(value.Uint())
-		case reflect.Uint32:
-			nv.Value = uint32(value.Uint())
-		case reflect.Uint64:
-			nv.Value = uint64(value.Uint())
-		case reflect.Float32:
-			nv.Value = float32(value.Float())
-		case reflect.Float64:
-			nv.Value = float64(value.Float())
-		case reflect.String:
-			nv.Value = value.String()
-		}
+	case Date:
+		nv.Value = v.convert()
+	case DateTime:
+		nv.Value = v.convert()
 	}
 	return nil
 }
@@ -259,7 +212,6 @@ func (ch *clickhouse) process() error {
 			ch.logf("[process] <- end of stream")
 			return nil
 		default:
-			ch.conn.Close()
 			return fmt.Errorf("[process] unexpected packet [%d] from server", packet)
 		}
 		if packet, err = ch.decoder.Uvarint(); err != nil {
@@ -276,9 +228,10 @@ func (ch *clickhouse) cancel() error {
 	return ch.conn.Close()
 }
 
-func (ch *clickhouse) watchCancel(ctx context.Context) func() {
-	if done := ctx.Done(); done != nil {
-		finished := make(chan struct{})
+func (ch *clickhouse) watchCancel(ctx context.Context, timeout time.Duration) func() {
+	finished := make(chan struct{})
+	switch done := ctx.Done(); true {
+	case done != nil:
 		go func() {
 			select {
 			case <-done:
@@ -289,12 +242,25 @@ func (ch *clickhouse) watchCancel(ctx context.Context) func() {
 				ch.logf("[cancel] <- finished")
 			}
 		}()
-		return func() {
+	default:
+		tick := time.NewTicker(timeout)
+		go func() {
+			defer tick.Stop()
 			select {
+			case <-tick.C:
+				ch.logf("[cancel] <- timeout")
+				ch.conn.SetReadDeadline(time.Now().Add(time.Millisecond))
+				ch.conn.SetWriteDeadline(time.Now().Add(time.Millisecond))
+				finished <- struct{}{}
 			case <-finished:
-			case finished <- struct{}{}:
+				ch.logf("[cancel] <- skip")
 			}
+		}()
+	}
+	return func() {
+		select {
+		case <-finished:
+		case finished <- struct{}{}:
 		}
 	}
-	return nil
 }

@@ -1,3 +1,7 @@
 [[constraint]]
-  version = "v2.0.0-beta.2"
   name = "github.com/prometheus/prometheus"
+  version = "=v2.0.0-beta.2"
+
+[[constraint]]
+  name = "github.com/kshvakov/clickhouse"
+  version = "=1.2"  # both 1.2.1 and 1.2.2 have that bug: https://github.com/kshvakov/clickhouse/pull/70

@@ -21,10 +21,10 @@ type IP net.IP
 // Value implements the driver.Valuer interface, json field interface
 // Alignment on the right side
 func (ip IP) Value() (driver.Value, error) {
-	return ip.MarshalBinary()
+	return ip.Native()
 }
 
-func (ip IP) MarshalBinary() ([]byte, error) {
+func (ip IP) Native() ([]byte, error) {
 	if len(ip) < 16 {
 		var (
 			buff = make([]byte, 16)

@@ -1,7 +1,6 @@
 package column
 
 import (
-	"encoding"
 	"fmt"
 	"reflect"
 
@@ -29,8 +28,8 @@ func (str *FixedString) Write(encoder *binary.Encoder, v interface{}) error {
 		fixedString = binary.Str2Bytes(v)
 	case []byte:
 		fixedString = v
-	case encoding.BinaryMarshaler:
-		bytes, err := v.MarshalBinary()
+	case NativeConverter:
+		bytes, err := v.Native()
 		if err != nil {
 			return err
 		}

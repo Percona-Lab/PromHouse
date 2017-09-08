@@ -1,19 +1,25 @@
 package clickhouse
 
 import (
+	"time"
+
 	"github.com/kshvakov/clickhouse/lib/data"
 	"github.com/kshvakov/clickhouse/lib/protocol"
 )
 
 func (ch *clickhouse) sendQuery(query string) error {
 	ch.logf("[send query] %s", query)
+	{
+		ch.conn.SetReadDeadline(time.Now().Add(ch.readTimeout))
+		ch.conn.SetWriteDeadline(time.Now().Add(ch.writeTimeout))
+	}
 	if err := ch.encoder.Uvarint(protocol.ClientQuery); err != nil {
 		return err
 	}
 	if err := ch.encoder.String(""); err != nil {
 		return err
 	}
-	if ch.ServerInfo.Revision >= protocol.DBMS_MIN_REVISION_WITH_CLIENT_INFO {
+	{ // client info
 		ch.encoder.Uvarint(1)
 		ch.encoder.String("")
 		ch.encoder.String("") //initial_query_id
@@ -21,13 +27,14 @@ func (ch *clickhouse) sendQuery(query string) error {
 		ch.encoder.Uvarint(1) // iface type TCP
 		ch.encoder.String(hostname)
 		ch.encoder.String(hostname)
-		if err := ch.ClientInfo.Write(ch.encoder); err != nil {
-			return err
-		}
-		if ch.ServerInfo.Revision >= protocol.DBMS_MIN_REVISION_WITH_QUOTA_KEY_IN_CLIENT_INFO {
-			ch.encoder.String("")
-		}
 	}
+	if err := ch.ClientInfo.Write(ch.encoder); err != nil {
+		return err
+	}
+	if ch.ServerInfo.Revision >= protocol.DBMS_MIN_REVISION_WITH_QUOTA_KEY_IN_CLIENT_INFO {
+		ch.encoder.String("")
+	}
+
 	if err := ch.encoder.String(""); err != nil { // settings
 		return err
 	}

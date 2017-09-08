@@ -55,7 +55,7 @@ func (array *Array) Value() (driver.Value, error) {
 	encoder.Uvarint(uint64(ln))
 	for i := 0; i < ln; i++ {
 		if err := array.column.Write(encoder, v.Index(i).Interface()); err != nil {
-			buff.Free()
+			buff.Reset()
 			return nil, err
 		}
 	}
@@ -70,7 +70,7 @@ func (array *Array) WriteArray(encoder *binary.Encoder, column column.Column) (u
 		v  = reflect.ValueOf(array.values)
 		ln = v.Len()
 	)
-	for i := 0; i < v.Len(); i++ {
+	for i := 0; i < ln; i++ {
 		if err := column.Write(encoder, v.Index(i).Interface()); err != nil {
 			return 0, err
 		}

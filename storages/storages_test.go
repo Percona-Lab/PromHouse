@@ -105,6 +105,10 @@ func sortLabels(labels []*prompb.Label) {
 }
 
 func TestStorages(t *testing.T) {
+	// level := logrus.GetLevel()
+	// logrus.SetLevel(logrus.DebugLevel)
+	// defer logrus.SetLevel(level)
+
 	for storageName, newStorage := range map[string]func() (Storage, error){
 		"Memory":     func() (Storage, error) { return NewMemory(), nil },
 		"ClickHouse": func() (Storage, error) { return NewClickHouse("tcp://127.0.0.1:9000", "prometheus_test", true) },

@@ -197,6 +197,7 @@ func (ch *ClickHouse) runMetricsReloader(ctx context.Context) {
 		ch.metricsRW.RUnlock()
 
 		err := func() error {
+			ch.l.Debug(q)
 			rows, err := ch.db.Query(q)
 			if err != nil {
 				return err
@@ -263,13 +264,14 @@ func (ch *ClickHouse) Describe(c chan<- *prometheus.Desc) {
 }
 
 func (ch *ClickHouse) Collect(c chan<- prometheus.Metric) {
-	// TODO remove this when https://github.com/f1yegor/clickhouse_exporter/pull/12 is merged
+	// TODO remove this when https://github.com/f1yegor/clickhouse_exporter/pull/13 is merged
 	// 'SELECT COUNT(*) FROM samples' is slow
 	query := `
 	SELECT table, sum(rows) AS rows, sum(bytes) AS bytes, (? * rows) AS virtual_bytes
 		FROM system.parts
 		WHERE database = ? AND active
 		GROUP BY table`
+	ch.l.Debugf("%s [%v, %v]", query, sampleRowSize, ch.database)
 	rows, err := ch.db.Query(query, sampleRowSize, ch.database)
 	if err != nil {
 		ch.l.Error(err)
@@ -363,6 +365,7 @@ func (ch *ClickHouse) Read(ctx context.Context, queries []Query) (res *prompb.Re
 		args = append(args, int64(q.Start))
 		args = append(args, int64(q.End))
 		err = func() error {
+			ch.l.Debugf("%s %v", query, args)
 			rows, err := ch.db.Query(query, args...)
 			if err != nil {
 				return errors.WithStack(err)
@@ -485,6 +488,7 @@ func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 			for _, f := range newMetrics {
 				args[1] = uint64(f)
 				args[2] = util.MarshalMetric(metrics[f])
+				ch.l.Debugf("%s %v", query, args)
 				if _, err = stmt.ExecContext(ctx, args...); err != nil {
 					return errors.WithStack(err)
 				}
@@ -514,6 +518,7 @@ func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 				args[0] = model.Time(s.Timestamp).Time()
 				args[2] = s.Timestamp
 				args[3] = s.Value
+				ch.l.Debugf("%s %v", query, args)
 				if _, err = stmt.ExecContext(ctx, args...); err != nil {
 					return errors.WithStack(err)
 				}

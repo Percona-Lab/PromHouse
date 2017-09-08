@@ -25,6 +25,7 @@ import (
 	"time"
 
 	_ "github.com/kshvakov/clickhouse" // register SQL driver
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/prompb"
@@ -364,7 +365,7 @@ func (ch *ClickHouse) Read(ctx context.Context, queries []Query) (res *prompb.Re
 		err = func() error {
 			rows, err := ch.db.Query(query, args...)
 			if err != nil {
-				return err
+				return errors.WithStack(err)
 			}
 			defer rows.Close()
 
@@ -374,7 +375,7 @@ func (ch *ClickHouse) Read(ctx context.Context, queries []Query) (res *prompb.Re
 			var value float64
 			for rows.Next() {
 				if err = rows.Scan(&fingerprint, &timestamp, &value); err != nil {
-					return err
+					return errors.WithStack(err)
 				}
 				if fingerprint != prevFingerprint {
 					prevFingerprint = fingerprint
@@ -404,7 +405,7 @@ func (ch *ClickHouse) Read(ctx context.Context, queries []Query) (res *prompb.Re
 			if ts != nil {
 				res.Results[i].Timeseries = append(res.Results[i].Timeseries, ts)
 			}
-			return rows.Err()
+			return errors.WithStack(rows.Err())
 		}()
 		if err != nil {
 			return
@@ -476,7 +477,7 @@ func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 			query := fmt.Sprintf(`INSERT INTO %s.metrics (date, fingerprint, labels) VALUES (?, ?, ?)`, ch.database)
 			var stmt *sql.Stmt
 			if stmt, err = tx.PrepareContext(ctx, query); err != nil {
-				return err
+				return errors.WithStack(err)
 			}
 
 			args := make([]interface{}, 3)
@@ -485,7 +486,7 @@ func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 				args[1] = uint64(f)
 				args[2] = util.MarshalMetric(metrics[f])
 				if _, err = stmt.ExecContext(ctx, args...); err != nil {
-					return err
+					return errors.WithStack(err)
 				}
 			}
 
@@ -502,7 +503,7 @@ func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 		query := fmt.Sprintf(`INSERT INTO %s.samples (date, fingerprint, timestamp, value) VALUES (?, ?, ?, ?)`, ch.database)
 		var stmt *sql.Stmt
 		if stmt, err = tx.PrepareContext(ctx, query); err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 
 		args := make([]interface{}, 4)
@@ -514,7 +515,7 @@ func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 				args[2] = s.Timestamp
 				args[3] = s.Value
 				if _, err = stmt.ExecContext(ctx, args...); err != nil {
-					return err
+					return errors.WithStack(err)
 				}
 				samples++
 			}

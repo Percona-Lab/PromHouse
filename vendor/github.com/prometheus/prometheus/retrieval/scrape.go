@@ -34,6 +34,7 @@ import (
 
 	"github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/pkg/pool"
 	"github.com/prometheus/prometheus/pkg/textparse"
 	"github.com/prometheus/prometheus/pkg/timestamp"
 	"github.com/prometheus/prometheus/pkg/value"
@@ -145,13 +146,15 @@ func newScrapePool(ctx context.Context, cfg *config.ScrapeConfig, app Appendable
 		logger.Errorf("Error creating HTTP client for job %q: %s", cfg.JobName, err)
 	}
 
+	buffers := pool.NewBytesPool(163, 100e6, 3)
+
 	newLoop := func(
 		ctx context.Context,
 		s scraper,
 		app, reportApp func() storage.Appender,
 		l log.Logger,
 	) loop {
-		return newScrapeLoop(ctx, s, app, reportApp, l)
+		return newScrapeLoop(ctx, s, app, reportApp, buffers, l)
 	}
 
 	return &scrapePool{
@@ -465,14 +468,16 @@ type lsetCacheEntry struct {
 }
 
 type refEntry struct {
-	ref      string
+	ref      uint64
 	lastIter uint64
 }
 
 type scrapeLoop struct {
-	scraper scraper
-	l       log.Logger
-	cache   *scrapeCache
+	scraper        scraper
+	l              log.Logger
+	cache          *scrapeCache
+	lastScrapeSize int
+	buffers        *pool.BytesPool
 
 	appender       func() storage.Appender
 	reportAppender func() storage.Appender
@@ -490,7 +495,7 @@ type scrapeCache struct {
 	iter uint64 // Current scrape iteration.
 
 	refs  map[string]*refEntry       // Parsed string to ref.
-	lsets map[string]*lsetCacheEntry // Ref to labelset and string.
+	lsets map[uint64]*lsetCacheEntry // Ref to labelset and string.
 
 	// seriesCur and seriesPrev store the labels of series that were seen
 	// in the current and previous scrape.
@@ -502,7 +507,7 @@ type scrapeCache struct {
 func newScrapeCache() *scrapeCache {
 	return &scrapeCache{
 		refs:       map[string]*refEntry{},
-		lsets:      map[string]*lsetCacheEntry{},
+		lsets:      map[uint64]*lsetCacheEntry{},
 		seriesCur:  map[uint64]labels.Labels{},
 		seriesPrev: map[uint64]labels.Labels{},
 	}
@@ -530,17 +535,17 @@ func (c *scrapeCache) iterDone() {
 	c.iter++
 }
 
-func (c *scrapeCache) getRef(met string) (string, bool) {
+func (c *scrapeCache) getRef(met string) (uint64, bool) {
 	e, ok := c.refs[met]
 	if !ok {
-		return "", false
+		return 0, false
 	}
 	e.lastIter = c.iter
 	return e.ref, true
 }
 
-func (c *scrapeCache) addRef(met, ref string, lset labels.Labels, hash uint64) {
-	if ref == "" {
+func (c *scrapeCache) addRef(met string, ref uint64, lset labels.Labels, hash uint64) {
+	if ref == 0 {
 		return
 	}
 	// Clean up the label set cache before overwriting the ref for a previously seen
@@ -573,16 +578,22 @@ func newScrapeLoop(
 	ctx context.Context,
 	sc scraper,
 	app, reportApp func() storage.Appender,
+	buffers *pool.BytesPool,
 	l log.Logger,
 ) *scrapeLoop {
 	if l == nil {
 		l = log.Base()
+	}
+	if buffers == nil {
+		buffers = pool.NewBytesPool(10e3, 100e6, 3)
 	}
 	sl := &scrapeLoop{
 		scraper:        sc,
 		appender:       app,
 		cache:          newScrapeCache(),
 		reportAppender: reportApp,
+		buffers:        buffers,
+		lastScrapeSize: 16000,
 		stopped:        make(chan struct{}),
 		ctx:            ctx,
 		l:              l,
@@ -631,14 +642,25 @@ mainLoop:
 				time.Since(last).Seconds(),
 			)
 		}
+		b := sl.buffers.Get(sl.lastScrapeSize)
+		buf := bytes.NewBuffer(b)
 
 		scrapeErr := sl.scraper.scrape(scrapeCtx, buf)
 		cancel()
-		var b []byte
+
 		if scrapeErr == nil {
 			b = buf.Bytes()
-		} else if errc != nil {
-			errc <- scrapeErr
+			// NOTE: There were issues with misbehaving clients in the past
+			// that occasionally returned empty results. We don't want those
+			// to falsely reset our buffer size.
+			if len(b) > 0 {
+				sl.lastScrapeSize = len(b)
+			}
+		} else {
+			sl.l.With("err", scrapeErr.Error()).Debug("scrape failed")
+			if errc != nil {
+				errc <- scrapeErr
+			}
 		}
 
 		// A failed scrape is the same as an empty scrape,
@@ -652,6 +674,8 @@ mainLoop:
 				sl.l.With("err", err).Error("append failed")
 			}
 		}
+
+		sl.buffers.Put(b)
 
 		if scrapeErr == nil {
 			scrapeErr = appErr
@@ -826,7 +850,7 @@ loop:
 				hash = lset.Hash()
 			}
 
-			var ref string
+			var ref uint64
 			ref, err = app.Add(lset, t, v)
 			// TODO(fabxc): also add a dropped-cache?
 			switch err {

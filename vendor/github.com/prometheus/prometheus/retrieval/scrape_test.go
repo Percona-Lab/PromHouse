@@ -313,7 +313,7 @@ func TestScrapePoolSampleAppender(t *testing.T) {
 
 func TestScrapeLoopStopBeforeRun(t *testing.T) {
 	scraper := &testScraper{}
-	sl := newScrapeLoop(context.Background(), scraper, nil, nil, nil)
+	sl := newScrapeLoop(context.Background(), scraper, nil, nil, nil, nil)
 
 	// The scrape pool synchronizes on stopping scrape loops. However, new scrape
 	// loops are started asynchronously. Thus it's possible, that a loop is stopped
@@ -371,7 +371,7 @@ func TestScrapeLoopStop(t *testing.T) {
 	)
 	defer close(signal)
 
-	sl := newScrapeLoop(context.Background(), scraper, app, reportApp, nil)
+	sl := newScrapeLoop(context.Background(), scraper, app, reportApp, nil, nil)
 
 	// Succeed once, several failures, then stop.
 	scraper.scrapeFunc = func(ctx context.Context, w io.Writer) error {
@@ -428,7 +428,7 @@ func TestScrapeLoopRun(t *testing.T) {
 	defer close(signal)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	sl := newScrapeLoop(ctx, scraper, app, reportApp, nil)
+	sl := newScrapeLoop(ctx, scraper, app, reportApp, nil, nil)
 
 	// The loop must terminate during the initial offset if the context
 	// is canceled.
@@ -466,7 +466,7 @@ func TestScrapeLoopRun(t *testing.T) {
 	}
 
 	ctx, cancel = context.WithCancel(context.Background())
-	sl = newScrapeLoop(ctx, scraper, app, reportApp, nil)
+	sl = newScrapeLoop(ctx, scraper, app, reportApp, nil, nil)
 
 	go func() {
 		sl.run(time.Second, 100*time.Millisecond, errc)
@@ -511,7 +511,7 @@ func TestScrapeLoopRunCreatesStaleMarkersOnFailedScrape(t *testing.T) {
 	defer close(signal)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	sl := newScrapeLoop(ctx, scraper, app, reportApp, nil)
+	sl := newScrapeLoop(ctx, scraper, app, reportApp, nil, nil)
 
 	// Succeed once, several failures, then stop.
 	scraper.scrapeFunc = func(ctx context.Context, w io.Writer) error {
@@ -561,7 +561,7 @@ func TestScrapeLoopRunCreatesStaleMarkersOnParseFailure(t *testing.T) {
 	defer close(signal)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	sl := newScrapeLoop(ctx, scraper, app, reportApp, nil)
+	sl := newScrapeLoop(ctx, scraper, app, reportApp, nil, nil)
 
 	// Succeed once, several failures, then stop.
 	scraper.scrapeFunc = func(ctx context.Context, w io.Writer) error {
@@ -608,6 +608,7 @@ func TestScrapeLoopAppend(t *testing.T) {
 		func() storage.Appender { return app },
 		func() storage.Appender { return nopAppender{} },
 		nil,
+		nil,
 	)
 	now := time.Now()
 	_, _, err := sl.append([]byte("metric_a 1\nmetric_b NaN\n"), now)
@@ -644,6 +645,7 @@ func TestScrapeLoopAppendStaleness(t *testing.T) {
 	sl := newScrapeLoop(context.Background(), nil,
 		func() storage.Appender { return app },
 		func() storage.Appender { return nopAppender{} },
+		nil,
 		nil,
 	)
 
@@ -687,6 +689,7 @@ func TestScrapeLoopAppendNoStalenessIfTimestamp(t *testing.T) {
 	sl := newScrapeLoop(context.Background(), nil,
 		func() storage.Appender { return app },
 		func() storage.Appender { return nopAppender{} },
+		nil,
 		nil,
 	)
 
@@ -780,7 +783,7 @@ func TestScrapeLoopRunAppliesScrapeLimit(t *testing.T) {
 		defer close(signal)
 
 		ctx, cancel := context.WithCancel(context.Background())
-		sl := newScrapeLoop(ctx, scraper, c.appender, reportApp, nil)
+		sl := newScrapeLoop(ctx, scraper, c.appender, reportApp, nil, nil)
 
 		// Setup a series to be stale, then 3 samples, then stop.
 		scraper.scrapeFunc = func(ctx context.Context, w io.Writer) error {
@@ -831,7 +834,7 @@ func TestScrapeLoopRunReportsTargetDownOnScrapeError(t *testing.T) {
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	sl := newScrapeLoop(ctx, scraper, func() storage.Appender { return nopAppender{} }, reportApp, nil)
+	sl := newScrapeLoop(ctx, scraper, func() storage.Appender { return nopAppender{} }, reportApp, nil, nil)
 
 	scraper.scrapeFunc = func(ctx context.Context, w io.Writer) error {
 		cancel()
@@ -853,7 +856,7 @@ func TestScrapeLoopRunReportsTargetDownOnInvalidUTF8(t *testing.T) {
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	sl := newScrapeLoop(ctx, scraper, func() storage.Appender { return nopAppender{} }, reportApp, nil)
+	sl := newScrapeLoop(ctx, scraper, func() storage.Appender { return nopAppender{} }, reportApp, nil, nil)
 
 	scraper.scrapeFunc = func(ctx context.Context, w io.Writer) error {
 		cancel()
@@ -872,20 +875,20 @@ type errorAppender struct {
 	collectResultAppender
 }
 
-func (app *errorAppender) Add(lset labels.Labels, t int64, v float64) (string, error) {
+func (app *errorAppender) Add(lset labels.Labels, t int64, v float64) (uint64, error) {
 	switch lset.Get(model.MetricNameLabel) {
 	case "out_of_order":
-		return "", storage.ErrOutOfOrderSample
+		return 0, storage.ErrOutOfOrderSample
 	case "amend":
-		return "", storage.ErrDuplicateSampleForTimestamp
+		return 0, storage.ErrDuplicateSampleForTimestamp
 	case "out_of_bounds":
-		return "", storage.ErrOutOfBounds
+		return 0, storage.ErrOutOfBounds
 	default:
 		return app.collectResultAppender.Add(lset, t, v)
 	}
 }
 
-func (app *errorAppender) AddFast(lset labels.Labels, ref string, t int64, v float64) error {
+func (app *errorAppender) AddFast(lset labels.Labels, ref uint64, t int64, v float64) error {
 	return app.collectResultAppender.AddFast(lset, ref, t, v)
 }
 
@@ -894,6 +897,7 @@ func TestScrapeLoopAppendGracefullyIfAmendOrOutOfOrderOrOutOfBounds(t *testing.T
 	sl := newScrapeLoop(context.Background(), nil,
 		func() storage.Appender { return app },
 		func() storage.Appender { return nopAppender{} },
+		nil,
 		nil,
 	)
 
@@ -924,6 +928,7 @@ func TestScrapeLoopOutOfBoundsTimeError(t *testing.T) {
 			}
 		},
 		func() storage.Appender { return nopAppender{} },
+		nil,
 		nil,
 	)
 

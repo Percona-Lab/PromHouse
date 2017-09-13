@@ -1,6 +1,6 @@
 [[constraint]]
   name = "github.com/prometheus/prometheus"
-  version = "=v2.0.0-beta.2"
+  version = "=v2.0.0-beta.3"
 
 [[constraint]]
   name = "github.com/kshvakov/clickhouse"

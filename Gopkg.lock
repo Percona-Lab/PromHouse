@@ -40,8 +40,8 @@
 [[projects]]
   name = "github.com/kshvakov/clickhouse"
   packages = [".","lib/binary","lib/column","lib/data","lib/protocol","lib/types","lib/writebuffer"]
-  revision = "ca76823c26995da9e515c0165cab5b26f87b66ac"
-  version = "v1.2"
+  revision = "d76698fe87ff6580e00bffa728acc642879f5116"
+  version = "v1.2.3"
 
 [[projects]]
   name = "github.com/matttproud/golang_protobuf_extensions"
@@ -142,6 +142,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "9f78ad4db5bafa22335752c32454a8e5607d5a95a78b2064d5e88ac4b752c408"
+  inputs-digest = "3ae686649e03a03965fe380d7956787dfc781c02157f43bec3c47108a83d2426"
   solver-name = "gps-cdcl"
   solver-version = 1

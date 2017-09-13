@@ -256,7 +256,7 @@ func Test_InsertBatch(t *testing.T) {
 								"RU",       //fixedstring,
 								time.Now(), //date
 								time.Now(), //datetime
-								clickhouse.Array([]string{"A", "B", "C"}),
+								[]string{"A", "B", "C"},
 							)
 							if !assert.NoError(t, err) {
 								return
@@ -497,43 +497,43 @@ func Test_ArrayT(t *testing.T) {
 					if stmt, err := tx.Prepare(dml); assert.NoError(t, err) {
 						for i := 1; i <= 10; i++ {
 							_, err = stmt.Exec(
-								clickhouse.Array([]int8{1, 2, 3}),
-								clickhouse.Array([]int16{5, 6, 7}),
-								clickhouse.Array([]int32{8, 9, 10}),
-								clickhouse.Array([]int64{11, 12, 13}),
+								[]int8{1, 2, 3},
+								[]int16{5, 6, 7},
+								[]int32{8, 9, 10},
+								[]int64{11, 12, 13},
 								clickhouse.Array([]uint8{14, 15, 16}),
-								clickhouse.Array([]uint16{17, 18, 19}),
-								clickhouse.Array([]uint32{20, 21, 22}),
-								clickhouse.Array([]uint64{23, 24, 25}),
-								clickhouse.Array([]float32{32.1, 32.2}),
-								clickhouse.Array([]float64{64.1, 64.2}),
-								clickhouse.Array([]string{fmt.Sprintf("A_%d", i), "B", "C"}),
+								[]uint16{17, 18, 19},
+								[]uint32{20, 21, 22},
+								[]uint64{23, 24, 25},
+								[]float32{32.1, 32.2},
+								[]float64{64.1, 64.2},
+								[]string{fmt.Sprintf("A_%d", i), "B", "C"},
 								clickhouse.ArrayFixedString(2, []string{"RU", "EN", "DE"}),
 								clickhouse.ArrayDate([]time.Time{time.Now(), time.Now()}),
 								clickhouse.ArrayDateTime([]time.Time{time.Now(), time.Now()}),
-								clickhouse.Array([]string{"a", "b"}),
-								clickhouse.Array([]string{"c", "d"}),
+								[]string{"a", "b"},
+								[]string{"c", "d"},
 							)
 							if !assert.NoError(t, err) {
 								return
 							}
 							_, err = stmt.Exec(
-								clickhouse.Array([]int8{100, 101, 102, 103, 104, 105}),
-								clickhouse.Array([]int16{200, 201}),
-								clickhouse.Array([]int32{300, 301, 302, 303}),
-								clickhouse.Array([]int64{400, 401, 402}),
+								[]int8{100, 101, 102, 103, 104, 105},
+								[]int16{200, 201},
+								[]int32{300, 301, 302, 303},
+								[]int64{400, 401, 402},
 								clickhouse.Array([]uint8{250, 251, 252, 253, 254}),
-								clickhouse.Array([]uint16{1000, 1001, 1002, 1003, 1004}),
-								clickhouse.Array([]uint32{2001, 2002}),
-								clickhouse.Array([]uint64{3000}),
-								clickhouse.Array([]float32{1000.1, 100.1, 2000}),
-								clickhouse.Array([]float64{640, 8, 650.9, 703.5, 800}),
-								clickhouse.Array([]string{fmt.Sprintf("D_%d", i), "E", "F", "G"}),
+								[]uint16{1000, 1001, 1002, 1003, 1004},
+								[]uint32{2001, 2002},
+								[]uint64{3000},
+								[]float32{1000.1, 100.1, 2000},
+								[]float64{640, 8, 650.9, 703.5, 800},
+								[]string{fmt.Sprintf("D_%d", i), "E", "F", "G"},
 								clickhouse.ArrayFixedString(2, []string{"UA", "GB"}),
 								clickhouse.ArrayDate([]time.Time{time.Now(), time.Now(), time.Now(), time.Now()}),
 								clickhouse.ArrayDateTime([]time.Time{time.Now(), time.Now()}),
-								clickhouse.Array([]string{"a", "b"}),
-								clickhouse.Array([]string{"c", "d"}),
+								[]string{"a", "b"},
+								[]string{"c", "d"},
 							)
 							if !assert.NoError(t, err) {
 								return
@@ -811,10 +811,10 @@ func Test_Enum(t *testing.T) {
 			if _, err := connect.Exec(ddl); assert.NoError(t, err) {
 				if tx, err := connect.Begin(); assert.NoError(t, err) {
 					if stmt, err := tx.Prepare(dml); assert.NoError(t, err) {
-						if _, err := stmt.Exec("a", "c", clickhouse.Array([]string{"a", "b"}), clickhouse.Array([]string{"c", "d"})); !assert.NoError(t, err) {
+						if _, err := stmt.Exec("a", "c", []string{"a", "b"}, []string{"c", "d"}); !assert.NoError(t, err) {
 							return
 						}
-						if _, err := stmt.Exec("b", "d", clickhouse.Array([]string{"b", "a"}), clickhouse.Array([]string{"d", "c"})); !assert.NoError(t, err) {
+						if _, err := stmt.Exec("b", "d", []string{"b", "a"}, []string{"d", "c"}); !assert.NoError(t, err) {
 							return
 						}
 					}
@@ -997,311 +997,6 @@ func Test_IP(t *testing.T) {
 	}
 }
 
-func Test_Nullable(t *testing.T) {
-	const (
-		ddl = `
-			CREATE TABLE clickhouse_test_nullable (
-				int8     Nullable(Int8),
-				int16    Nullable(Int16),
-				int32    Nullable(Int32),
-				int64    Nullable(Int64),
-				uint8    Nullable(UInt8),
-				uint16   Nullable(UInt16),
-				uint32   Nullable(UInt32),
-				uint64   Nullable(UInt64),
-				float32  Nullable(Float32),
-				float64  Nullable(Float64),
-				string   Nullable(String),
-				fString  Nullable(FixedString(2)),
-				date     Nullable(Date),
-				datetime Nullable(DateTime),
-				enum8    Nullable(Enum8 ('a' = 1, 'b' = 2)),
-				enum16   Nullable(Enum16('c' = 1, 'd' = 2))
-			) Engine=Memory;
-		`
-		dml = `
-			INSERT INTO clickhouse_test_nullable (
-				int8,
-				int16, 
-				int32,
-				int64,
-				uint8, 
-				uint16, 
-				uint32,
-				uint64,
-				float32,
-				float64,
-				string,
-				fString,
-				date,
-				datetime,
-				enum8,
-				enum16
-			) VALUES (
-				?, 
-				?, 
-				?,
-				?,
-				?,
-				?,
-				?,
-				?,
-				?,
-				?,
-				?,
-				?,
-				?,
-				?,
-				?,
-				?
-			)
-		`
-		query = `
-			SELECT 
-				int8, 
-				int16, 
-				int32,
-				int64,
-				uint8, 
-				uint16, 
-				uint32,
-				uint64,
-				float32,
-				float64,
-				string,
-				fString,
-				date,
-				datetime,
-				enum8,
-				enum16
-			FROM clickhouse_test_nullable
-		`
-	)
-	if connect, err := sql.Open("clickhouse", "tcp://127.0.0.1:9000?debug=true"); assert.NoError(t, err) {
-		if tx, err := connect.Begin(); assert.NoError(t, err) {
-			if _, err := connect.Exec("DROP TABLE IF EXISTS clickhouse_test_nullable"); assert.NoError(t, err) {
-				if _, err := tx.Exec(ddl); assert.NoError(t, err) {
-					if tx, err := connect.Begin(); assert.NoError(t, err) {
-						if stmt, err := tx.Prepare(dml); assert.NoError(t, err) {
-							if _, err := stmt.Exec(
-								8,
-								16,
-								32,
-								64,
-								18,
-								116,
-								132,
-								165,
-								1.1,
-								2.2,
-								"RU",
-								"UA",
-								time.Now(),
-								time.Now(),
-								"a",
-								"c",
-							); !assert.NoError(t, err) {
-								t.Fatal(err)
-							}
-						}
-						if err := tx.Commit(); !assert.NoError(t, err) {
-							t.Fatal(err)
-						}
-					}
-					if rows, err := connect.Query(query); assert.NoError(t, err) {
-						if assert.True(t, rows.Next()) {
-							var (
-								Int8     = new(int8)
-								Int16    = new(int16)
-								Int32    = new(int32)
-								Int64    = new(int64)
-								UInt8    = new(uint8)
-								UInt16   = new(uint16)
-								UInt32   = new(uint32)
-								UInt64   = new(uint64)
-								Float32  = new(float32)
-								Float64  = new(float64)
-								String   = new(string)
-								FString  = new(string)
-								Date     = new(time.Time)
-								DateTime = new(time.Time)
-								Enum8    = new(string)
-								Enum16   = new(string)
-							)
-							if err := rows.Scan(
-								&Int8,
-								&Int16,
-								&Int32,
-								&Int64,
-								&UInt8,
-								&UInt16,
-								&UInt32,
-								&UInt64,
-								&Float32,
-								&Float64,
-								&String,
-								&FString,
-								&Date,
-								&DateTime,
-								&Enum8,
-								&Enum16,
-							); assert.NoError(t, err) {
-								if assert.NotNil(t, Int8) {
-									assert.Equal(t, int8(8), *Int8)
-								}
-								if assert.NotNil(t, Int16) {
-									assert.Equal(t, int16(16), *Int16)
-								}
-								if assert.NotNil(t, Int32) {
-									assert.Equal(t, int32(32), *Int32)
-								}
-								if assert.NotNil(t, Int64) {
-									assert.Equal(t, int64(64), *Int64)
-								}
-
-								if assert.NotNil(t, String) {
-									assert.Equal(t, "RU", *String)
-								}
-								if assert.NotNil(t, FString) {
-									assert.Equal(t, "UA", *FString)
-								}
-								t.Log(
-									*Int8,
-									*Int16,
-									*Int32,
-									*Int64,
-									*UInt8,
-									*UInt16,
-									*UInt32,
-									*UInt64,
-									*Float32,
-									*Float64,
-									*String,
-									*FString,
-									*Date,
-									*DateTime,
-									*Enum8,
-									*Enum16,
-								)
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	if connect, err := sql.Open("clickhouse", "tcp://127.0.0.1:9000?debug=true"); assert.NoError(t, err) {
-		if tx, err := connect.Begin(); assert.NoError(t, err) {
-			if _, err := connect.Exec("DROP TABLE IF EXISTS clickhouse_test_nullable"); assert.NoError(t, err) {
-				if _, err := tx.Exec(ddl); assert.NoError(t, err) {
-					if tx, err := connect.Begin(); assert.NoError(t, err) {
-						if stmt, err := tx.Prepare(dml); assert.NoError(t, err) {
-							if _, err := stmt.Exec(
-								nil,
-								16,
-								nil,
-								64,
-								18,
-								116,
-								132,
-								165,
-								1.1,
-								2.2,
-								nil,
-								"UA",
-								time.Now(),
-								time.Now(),
-								"a",
-								"c",
-							); !assert.NoError(t, err) {
-								t.Fatal(err)
-							}
-						}
-						if err := tx.Commit(); !assert.NoError(t, err) {
-							t.Fatal(err)
-						}
-					}
-					if rows, err := connect.Query(query); assert.NoError(t, err) {
-						if assert.True(t, rows.Next()) {
-							var (
-								Int8     = new(int8)
-								Int16    = new(int16)
-								Int32    = new(int32)
-								Int64    = new(int64)
-								UInt8    = new(uint8)
-								UInt16   = new(uint16)
-								UInt32   = new(uint32)
-								UInt64   = new(uint64)
-								Float32  = new(float32)
-								Float64  = new(float64)
-								String   = new(string)
-								FString  = new(string)
-								Date     = new(time.Time)
-								DateTime = new(time.Time)
-								Enum8    = new(string)
-								Enum16   = new(string)
-							)
-							if err := rows.Scan(
-								&Int8,
-								&Int16,
-								&Int32,
-								&Int64,
-								&UInt8,
-								&UInt16,
-								&UInt32,
-								&UInt64,
-								&Float32,
-								&Float64,
-								&String,
-								&FString,
-								&Date,
-								&DateTime,
-								&Enum8,
-								&Enum16,
-							); assert.NoError(t, err) {
-								if assert.Nil(t, Int8) {
-									if assert.NotNil(t, Int16) {
-										assert.Equal(t, int16(16), *Int16)
-									}
-								}
-								if assert.Nil(t, Int32) {
-									if assert.NotNil(t, Int64) {
-										assert.Equal(t, int64(64), *Int64)
-									}
-								}
-								if assert.Nil(t, String) {
-									if assert.NotNil(t, FString) {
-										assert.Equal(t, "UA", *FString)
-									}
-								}
-								t.Log(
-									Int8,
-									*Int16,
-									Int32,
-									*Int64,
-									*UInt8,
-									*UInt16,
-									*UInt32,
-									*UInt64,
-									*Float32,
-									*Float64,
-									String,
-									*FString,
-									*Date,
-									*DateTime,
-									*Enum8,
-									*Enum16,
-								)
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-}
-
 func Test_Context_Timeout(t *testing.T) {
 	if connect, err := sql.Open("clickhouse", "tcp://127.0.0.1:9000?debug=true"); assert.NoError(t, err) && assert.NoError(t, connect.Ping()) {
 		{
@@ -1326,7 +1021,7 @@ func Test_Context_Timeout(t *testing.T) {
 }
 
 func Test_Timeout(t *testing.T) {
-	if connect, err := sql.Open("clickhouse", "tcp://127.0.0.1:9000?debug=true&read_timeout=0.1"); assert.NoError(t, err) && assert.NoError(t, connect.Ping()) {
+	if connect, err := sql.Open("clickhouse", "tcp://127.0.0.1:9000?debug=true&read_timeout=0.2"); assert.NoError(t, err) && assert.NoError(t, connect.Ping()) {
 		{
 			if row := connect.QueryRow("SELECT 1, sleep(10)"); assert.NotNil(t, row) {
 				var a, b int

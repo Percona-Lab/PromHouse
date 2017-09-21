@@ -29,12 +29,12 @@ import (
 func (p *PromAPI) convertRead2Request(request *prom2.ReadRequest) []storages.Query {
 	queries := make([]storages.Query, len(request.Queries))
 	for i, rq := range request.Queries {
-		empty := true
 		q := storages.Query{
 			Start:    model.Time(rq.StartTimestampMs),
 			End:      model.Time(rq.EndTimestampMs),
 			Matchers: make([]storages.Matcher, len(rq.Matchers)),
 		}
+
 		for j, m := range rq.Matchers {
 			var t storages.MatchType
 			switch m.Type {
@@ -55,16 +55,11 @@ func (p *PromAPI) convertRead2Request(request *prom2.ReadRequest) []storages.Que
 				Name:  m.Name,
 				Value: m.Value,
 			}
-			if m.Value != "" {
-				empty = false
-			}
 		}
 
-		if empty {
-			p.Logger.Panicf("expectation failed: at least one matcher should have non-empty label value")
-		}
 		queries[i] = q
 	}
+
 	return queries
 }
 

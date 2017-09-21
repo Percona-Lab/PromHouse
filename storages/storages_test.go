@@ -359,6 +359,23 @@ func TestStorages(t *testing.T) {
 							Value: "http_requests_total",
 						}},
 					},
+					{
+						Start: start,
+						End:   end,
+						Matchers: []Matcher{{
+							Name:  "no_such_label",
+							Type:  MatchNotEqual,
+							Value: "no_such_value",
+						}, {
+							Name:  "no_this_label",
+							Type:  MatchEqual,
+							Value: "",
+						}, {
+							Name:  "__name__",
+							Type:  MatchEqual,
+							Value: "http_requests_total",
+						}},
+					},
 				} {
 					t.Run(q.String(), func(t *testing.T) {
 						data, err := storage.Read(context.Background(), []Query{q})

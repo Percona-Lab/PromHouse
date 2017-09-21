@@ -88,6 +88,8 @@ func (m Matcher) String() string {
 
 type Matchers []Matcher
 
+var emptyLabel = &prompb.Label{}
+
 func (ms Matchers) String() string {
 	res := make([]string, len(ms))
 	for i, m := range ms {
@@ -124,21 +126,11 @@ func (ms Matchers) MatchLabels(labels []*prompb.Label) bool {
 			m.re = regexp.MustCompile("^(?:" + m.Value + ")$")
 		}
 
-		var label *prompb.Label
+		label := emptyLabel
 		for _, l := range labels {
 			if m.Name == l.Name {
 				label = l
 				break
-			}
-		}
-
-		// if label not found, return false for positive matchers, continue otherwise
-		if label == nil {
-			switch m.Type {
-			case MatchEqual, MatchRegexp:
-				return false
-			default:
-				continue
 			}
 		}
 

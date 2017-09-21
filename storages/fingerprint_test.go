@@ -19,8 +19,9 @@ package storages
 import (
 	"testing"
 
-	"github.com/prometheus/prometheus/prompb"
 	"github.com/stretchr/testify/assert"
+
+	prompb "github.com/Percona-Lab/PromHouse/prompb/prom2"
 )
 
 func TestFingerprints(t *testing.T) {

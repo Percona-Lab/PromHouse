@@ -24,9 +24,10 @@ import (
 	"time"
 
 	"github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/prompb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	prompb "github.com/Percona-Lab/PromHouse/prompb/prom2"
 )
 
 func getData() *prompb.WriteRequest {

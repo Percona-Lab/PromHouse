@@ -34,7 +34,8 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/prompb"
+
+	prompb "github.com/Percona-Lab/PromHouse/prompb/prom2"
 )
 
 type client struct {

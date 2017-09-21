@@ -28,8 +28,9 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/prompb"
 	"github.com/sirupsen/logrus"
+
+	prompb "github.com/Percona-Lab/PromHouse/prompb/prom2"
 )
 
 const (

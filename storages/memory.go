@@ -22,7 +22,8 @@ import (
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/prometheus/prompb"
+
+	prompb "github.com/Percona-Lab/PromHouse/prompb/prom2"
 )
 
 // Memory is a functional dummy storage for testing.

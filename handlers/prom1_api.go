@@ -14,36 +14,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-package storages
+package handlers
 
 import (
-	"context"
-
-	"github.com/prometheus/client_golang/prometheus"
-
-	prompb "github.com/Percona-Lab/PromHouse/prompb/prom2"
+	_ "github.com/Percona-Lab/PromHouse/prompb/prom1"
 )
-
-// Blackhole is a non-functional dummy storage for testing.
-type Blackhole struct{}
-
-func NewBlackhole() *Blackhole {
-	return new(Blackhole)
-}
-
-func (m *Blackhole) Describe(c chan<- *prometheus.Desc) {
-}
-
-func (m *Blackhole) Collect(c chan<- prometheus.Metric) {
-}
-
-func (m *Blackhole) Read(ctx context.Context, queries []Query) (*prompb.ReadResponse, error) {
-	return nil, nil
-}
-
-func (m *Blackhole) Write(ctx context.Context, data *prompb.WriteRequest) error {
-	return nil
-}
-
-// check interface
-var _ Storage = (*Blackhole)(nil)

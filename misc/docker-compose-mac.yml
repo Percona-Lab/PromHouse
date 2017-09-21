@@ -2,7 +2,7 @@
 version: '3'
 services:
   prometheus:
-    image: prom/prometheus:v2.0.0-beta.4
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus:v2.0.0-beta.4}
     ports:
       - 127.0.0.1:9090:9090
     volumes:

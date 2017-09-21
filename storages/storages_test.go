@@ -122,8 +122,9 @@ func TestStorages(t *testing.T) {
 		"ClickHouse": func() (Storage, error) { return NewClickHouse("tcp://127.0.0.1:9000", "prometheus_test", true) },
 	} {
 		t.Run(storageName, func(t *testing.T) {
-			// Label matchers that match empty label values also select all time series that do not have the specific label set at all.
-			// At least one matcher should have non-empty label value.
+			// We expect that from Prometheus (from https://prometheus.io/docs/querying/basics/):
+			// * Label matchers that match empty label values also select all time series that do not have the specific label set at all.
+			// * At least one matcher should have non-empty label value.
 
 			storedData := getData()
 			storage, err := newStorage()
@@ -152,7 +153,7 @@ func TestStorages(t *testing.T) {
 						Matchers: []Matcher{{
 							Name:  "__name__",
 							Type:  MatchNotEqual,
-							Value: "no_such_label",
+							Value: "no_such_metric",
 						}},
 					},
 				} {
@@ -176,7 +177,7 @@ func TestStorages(t *testing.T) {
 						Matchers: []Matcher{{
 							Name:  "__name__",
 							Type:  MatchEqual,
-							Value: "no_such_label",
+							Value: "no_such_metric",
 						}},
 					},
 
@@ -275,6 +276,27 @@ func TestStorages(t *testing.T) {
 							Name:  "__name__",
 							Type:  MatchNotRegexp,
 							Value: "http_requests_.+",
+						}},
+					},
+				} {
+					t.Run(q.String(), func(t *testing.T) {
+						data, err := storage.Read(context.Background(), []Query{q})
+						assert.NoError(t, err)
+						require.Len(t, data.Results, 1)
+						require.Len(t, data.Results[0].Timeseries, 0)
+					})
+				}
+			})
+
+			t.Run("ReadByNonExistingLabel", func(t *testing.T) {
+				for _, q := range []Query{
+					{
+						Start: start,
+						End:   end,
+						Matchers: []Matcher{{
+							Name:  "no_such_label",
+							Type:  MatchEqual,
+							Value: "query",
 						}},
 					},
 				} {

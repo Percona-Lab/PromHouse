@@ -18,6 +18,7 @@ package storages
 
 import (
 	"encoding/json"
+	"sort"
 	"testing"
 
 	"github.com/prometheus/common/model"
@@ -67,12 +68,20 @@ func TestMarshalMetricsAndLabels(t *testing.T) {
 		assert.Equal(t, m3, m1)
 		assert.Equal(t, m3, m2)
 
+		byName := func(labels []*prompb.Label) func(i, j int) bool {
+			return func(i, j int) bool {
+				return labels[i].Name < labels[j].Name
+			}
+		}
+
 		l1, err := unmarshalLabels(b1)
 		require.NoError(t, err)
+		sort.Slice(l1, byName(l1)) // b1 is created from metric (map), so we need to restore order
 		l2, err := unmarshalLabels(b2)
 		require.NoError(t, err)
 		l3, err := unmarshalLabels(b3)
 		require.NoError(t, err)
+		sort.Slice(l3, byName(l3)) // b3 is created by json.Marshal, so we need to restore order
 		assert.Equal(t, labels, l1)
 		assert.Equal(t, labels, l2)
 		assert.Equal(t, labels, l3)

@@ -18,7 +18,6 @@ package storages
 
 import (
 	"encoding/json"
-	"sort"
 
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/prompb"
@@ -109,6 +108,5 @@ func unmarshalLabels(b []byte) ([]*prompb.Label, error) {
 			Value: v,
 		})
 	}
-	sort.Slice(res, func(i, j int) bool { return res[i].Name < res[j].Name })
 	return res, nil
 }

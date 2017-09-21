@@ -74,7 +74,8 @@ func TestMarshalMetricsAndLabels(t *testing.T) {
 		require.NoError(t, err)
 		l2, err := unmarshalLabels(b2)
 		require.NoError(t, err)
-		sort.Slice(l2, byName(l2)) // b2 is created by json.Marshal, so we need to restore order
+		sort.Slice(l1, byName(l1))
+		sort.Slice(l2, byName(l2))
 		assert.Equal(t, labels, l1)
 		assert.Equal(t, labels, l2)
 	}

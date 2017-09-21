@@ -100,6 +100,8 @@ func sortTimeSeries(timeSeries []*prompb.TimeSeries) {
 			return nameI < nameJ
 		}
 
+		sortLabels(timeSeries[i].Labels)
+		sortLabels(timeSeries[j].Labels)
 		return fingerprint(timeSeries[i].Labels) < fingerprint(timeSeries[j].Labels)
 	})
 }

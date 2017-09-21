@@ -1,10 +1,9 @@
-## v2.0.0-beta.3 / 2017-09-12
+## v2.0.0-beta.4 / 2017-09-14
 
 This release includes numerous changes to the new storage layer. The main changes are:
 
 * [CHANGES] Single, compacted write ahead log
 * [CHANGES] Single in-memory block with garbage collection
-* [CHANGES] Improve compression of index files
 * [ENHANCEMENTS] Cache series dropped via `metric_relabel_configs`
 * [ENHANCEMENTS] Pool byte buffers for scraping
 

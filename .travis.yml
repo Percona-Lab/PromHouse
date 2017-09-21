@@ -7,9 +7,9 @@ go:
   # - master
 
 env:
-  # - PROMETHEUS_IMAGE=prom/prometheus:v1.7.1
-  - PROMETHEUS_IMAGE=prom/prometheus:v2.0.0-beta.4
-  - PROMETHEUS_IMAGE=prom/prometheus:master
+  # - PROM_IMAGE=prom/prometheus:v1.7.1        PROM_CONFIG=prom1
+  - PROM_IMAGE=prom/prometheus:v2.0.0-beta.4 PROM_CONFIG=prom2
+  - PROM_IMAGE=prom/prometheus:master        PROM_CONFIG=prom2
 
 services:
   - docker

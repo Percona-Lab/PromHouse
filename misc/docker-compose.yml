@@ -2,12 +2,12 @@
 version: '3'
 services:
   prometheus:
-    image: ${PROMETHEUS_IMAGE:-prom/prometheus:v2.0.0-beta.4}
+    image: ${PROM_IMAGE:-prom/prometheus:v2.0.0-beta.4}
     ports:
       - 127.0.0.1:9090:9090
     network_mode: host
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./${PROM_CONFIG:-prom2}.yml:/etc/prometheus/prometheus.yml
 
   clickhouse:
     image: yandex/clickhouse-server

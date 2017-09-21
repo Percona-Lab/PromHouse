@@ -20,7 +20,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -436,7 +435,7 @@ func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 	fingerprints := make([]uint64, len(data.Timeseries))
 	metrics := make(map[uint64][]*prompb.Label, len(data.Timeseries))
 	for i, ts := range data.Timeseries {
-		sort.Slice(ts.Labels, func(i, j int) bool { return ts.Labels[i].Name < ts.Labels[j].Name })
+		sortLabels(ts.Labels)
 		f := fingerprint(ts.Labels)
 		fingerprints[i] = f
 		metrics[f] = ts.Labels

@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -85,26 +86,6 @@ func (m Matcher) String() string {
 	return fmt.Sprintf("%s%s%q", m.Name, m.Type, m.Value)
 }
 
-func (m *Matcher) Match(metric model.Metric) bool {
-	if (m.re == nil) && (m.Type == MatchRegexp || m.Type == MatchNotRegexp) {
-		m.re = regexp.MustCompile("^(?:" + m.Value + ")$")
-	}
-
-	v := string(metric[model.LabelName(m.Name)])
-	switch m.Type {
-	case MatchEqual:
-		return v == m.Value
-	case MatchNotEqual:
-		return v != m.Value
-	case MatchRegexp:
-		return m.re.MatchString(v)
-	case MatchNotRegexp:
-		return !m.re.MatchString(v)
-	default:
-		panic("unknown match type")
-	}
-}
-
 type Matchers []Matcher
 
 func (ms Matchers) String() string {
@@ -113,15 +94,6 @@ func (ms Matchers) String() string {
 		res[i] = m.String()
 	}
 	return "{" + strings.Join(res, ",") + "}"
-}
-
-func (ms Matchers) Match(metric model.Metric) bool {
-	for _, m := range ms {
-		if !m.Match(metric) {
-			return false
-		}
-	}
-	return true
 }
 
 func (ms Matchers) MatchLabels(labels []*prompb.Label) bool {
@@ -177,6 +149,11 @@ func (ms Matchers) MatchLabels(labels []*prompb.Label) bool {
 		}
 	}
 	return true
+}
+
+// sortLabels sorts labels by name.
+func sortLabels(labels []*prompb.Label) {
+	sort.Slice(labels, func(i, j int) bool { return labels[i].Name < labels[j].Name })
 }
 
 // check interfaces

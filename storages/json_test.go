@@ -18,7 +18,6 @@ package storages
 
 import (
 	"encoding/json"
-	"sort"
 	"testing"
 
 	"github.com/prometheus/common/model"
@@ -63,18 +62,12 @@ func TestMarshalMetricsAndLabels(t *testing.T) {
 		require.NoError(t, json.Unmarshal(b2, &m2))
 		assert.Equal(t, m2, m1)
 
-		byName := func(labels []*prompb.Label) func(i, j int) bool {
-			return func(i, j int) bool {
-				return labels[i].Name < labels[j].Name
-			}
-		}
-
 		l1, err := unmarshalLabels(b1)
 		require.NoError(t, err)
 		l2, err := unmarshalLabels(b2)
 		require.NoError(t, err)
-		sort.Slice(l1, byName(l1))
-		sort.Slice(l2, byName(l2))
+		sortLabels(l1)
+		sortLabels(l2)
 		assert.Equal(t, labels, l1)
 		assert.Equal(t, labels, l2)
 	}

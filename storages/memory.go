@@ -22,21 +22,20 @@ import (
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/prompb"
 )
 
 // Memory is a functional dummy storage for testing.
 type Memory struct {
-	metrics []model.Metric
-	samples map[model.Fingerprint][]*prompb.Sample
+	metrics map[uint64][]*prompb.Label
+	samples map[uint64][]*prompb.Sample
 	rw      sync.RWMutex
 }
 
 func NewMemory() *Memory {
 	return &Memory{
-		metrics: make([]model.Metric, 0, 1000),
-		samples: make(map[model.Fingerprint][]*prompb.Sample),
+		metrics: make(map[uint64][]*prompb.Label, 8192),
+		samples: make(map[uint64][]*prompb.Sample, 8192),
 	}
 }
 
@@ -59,12 +58,11 @@ func (m *Memory) Read(ctx context.Context, queries []Query) (*prompb.ReadRespons
 	}
 	for i, q := range queries {
 		res.Results[i] = new(prompb.QueryResult)
-		for _, metric := range m.metrics {
-			if q.Matchers.Match(metric) {
+		for f, metric := range m.metrics {
+			if q.Matchers.MatchLabels(metric) {
 				var ts *prompb.TimeSeries
-				samples := m.samples[metric.Fingerprint()]
 				start, end := int64(q.Start), int64(q.End)
-				for _, sp := range samples {
+				for _, sp := range m.samples[f] {
 					if sp.Timestamp < start {
 						continue
 					}
@@ -72,17 +70,8 @@ func (m *Memory) Read(ctx context.Context, queries []Query) (*prompb.ReadRespons
 						break
 					}
 					if ts == nil {
-						// convert model.Metric to []*prompb.Label
-						labels := make([]*prompb.Label, 0, len(metric))
-						for n, v := range metric {
-							labels = append(labels, &prompb.Label{
-								Name:  string(n),
-								Value: string(v),
-							})
-						}
-
 						ts = &prompb.TimeSeries{
-							Labels: labels,
+							Labels: metric,
 						}
 					}
 					ts.Samples = append(ts.Samples, sp)
@@ -106,31 +95,17 @@ func (m *Memory) Write(ctx context.Context, data *prompb.WriteRequest) error {
 	}
 
 	for _, ts := range data.Timeseries {
-		// convert []*prompb.Label to model.Metric
-		metric := make(model.Metric, len(ts.Labels))
-		for _, l := range ts.Labels {
-			metric[model.LabelName(l.Name)] = model.LabelValue(l.Value)
-		}
+		sortLabels(ts.Labels)
+		f := fingerprint(ts.Labels)
+		m.metrics[f] = ts.Labels
 
-		var found bool
-		for _, m := range m.metrics {
-			if m.Equal(metric) {
-				found = true
-				break
-			}
+		s := m.samples[f]
+		s = append(s, ts.Samples...)
+		less := func(i, j int) bool { return s[i].Timestamp < s[j].Timestamp }
+		if !sort.SliceIsSorted(s, less) {
+			sort.Slice(s, less)
 		}
-		if !found {
-			m.metrics = append(m.metrics, metric)
-		}
-
-		f := metric.Fingerprint()
-		v := m.samples[f]
-		v = append(v, ts.Samples...)
-		less := func(i, j int) bool { return v[i].Timestamp < v[j].Timestamp }
-		if !sort.SliceIsSorted(v, less) {
-			sort.Slice(v, less)
-		}
-		m.samples[f] = v
+		m.samples[f] = s
 	}
 
 	return nil

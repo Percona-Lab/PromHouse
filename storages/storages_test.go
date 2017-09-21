@@ -18,6 +18,7 @@ package storages
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"testing"
 	"time"
@@ -79,7 +80,7 @@ func getData() *prompb.WriteRequest {
 	}
 }
 
-// sortTimeSeries sorts timeseries by a value of __name__ label.
+// sortTimeSeries sorts timeseries by metric name and fingerprint.
 func sortTimeSeries(timeSeries []*prompb.TimeSeries) {
 	sort.Slice(timeSeries, func(i, j int) bool {
 		var nameI, nameJ string
@@ -95,13 +96,12 @@ func sortTimeSeries(timeSeries []*prompb.TimeSeries) {
 				break
 			}
 		}
-		return nameI < nameJ
-	})
-}
+		if nameI != nameJ {
+			return nameI < nameJ
+		}
 
-// sortLabels sorts labels by name.
-func sortLabels(labels []*prompb.Label) {
-	sort.Slice(labels, func(i, j int) bool { return labels[i].Name < labels[j].Name })
+		return fingerprint(timeSeries[i].Labels) < fingerprint(timeSeries[j].Labels)
+	})
 }
 
 func makeMetric(labels []*prompb.Label) model.Metric {
@@ -110,6 +110,21 @@ func makeMetric(labels []*prompb.Label) model.Metric {
 		metric[model.LabelName(l.Name)] = model.LabelValue(l.Value)
 	}
 	return metric
+}
+
+func formatTS(ts *prompb.TimeSeries) string {
+	res := makeMetric(ts.Labels).String()
+	for _, s := range ts.Samples {
+		res += "\n\t" + model.SamplePair{
+			Timestamp: model.Time(s.Timestamp),
+			Value:     model.SampleValue(s.Value),
+		}.String()
+	}
+	return res
+}
+
+func messageTS(expected, actual *prompb.TimeSeries) string {
+	return fmt.Sprintf("expected = %s\nactual  = %s", formatTS(expected), formatTS(actual))
 }
 
 func TestStorages(t *testing.T) {
@@ -162,9 +177,11 @@ func TestStorages(t *testing.T) {
 						assert.NoError(t, err)
 						require.Len(t, data.Results, 1)
 						require.Len(t, data.Results[0].Timeseries, 3)
-						for i, ts := range data.Results[0].Timeseries {
-							sortLabels(ts.Labels)
-							assert.Equal(t, storedData.Timeseries[i], ts)
+						sortTimeSeries(data.Results[0].Timeseries)
+						for i, actual := range data.Results[0].Timeseries {
+							sortLabels(actual.Labels)
+							expected := storedData.Timeseries[i]
+							assert.Equal(t, expected, actual, messageTS(expected, actual))
 						}
 					})
 				}
@@ -239,9 +256,11 @@ func TestStorages(t *testing.T) {
 						assert.NoError(t, err)
 						require.Len(t, data.Results, 1)
 						require.Len(t, data.Results[0].Timeseries, 3)
-						for i, ts := range data.Results[0].Timeseries {
-							sortLabels(ts.Labels)
-							assert.Equal(t, storedData.Timeseries[i], ts)
+						sortTimeSeries(data.Results[0].Timeseries)
+						for i, actual := range data.Results[0].Timeseries {
+							sortLabels(actual.Labels)
+							expected := storedData.Timeseries[i]
+							assert.Equal(t, expected, actual, messageTS(expected, actual))
 						}
 					})
 				}
@@ -338,9 +357,10 @@ func TestStorages(t *testing.T) {
 				require.Len(t, data.Results, 1)
 				require.Len(t, data.Results[0].Timeseries, len(storedData.Timeseries))
 				sortTimeSeries(data.Results[0].Timeseries)
-				for i, ts := range data.Results[0].Timeseries {
-					sortLabels(ts.Labels)
-					assert.Equal(t, storedData.Timeseries[i], ts)
+				for i, actual := range data.Results[0].Timeseries {
+					sortLabels(actual.Labels)
+					expected := storedData.Timeseries[i]
+					assert.Equal(t, expected, actual, messageTS(expected, actual))
 				}
 			})
 		})

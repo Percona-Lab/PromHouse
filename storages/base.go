@@ -75,7 +75,7 @@ func (m MatchType) String() string {
 }
 
 type Matcher struct {
-	Name  model.LabelName
+	Name  string
 	Type  MatchType
 	Value string
 	re    *regexp.Regexp
@@ -90,15 +90,16 @@ func (m *Matcher) Match(metric model.Metric) bool {
 		m.re = regexp.MustCompile("^(?:" + m.Value + ")$")
 	}
 
+	v := string(metric[model.LabelName(m.Name)])
 	switch m.Type {
 	case MatchEqual:
-		return string(metric[m.Name]) == m.Value
+		return v == m.Value
 	case MatchNotEqual:
-		return string(metric[m.Name]) != m.Value
+		return v != m.Value
 	case MatchRegexp:
-		return m.re.MatchString(string(metric[m.Name]))
+		return m.re.MatchString(v)
 	case MatchNotRegexp:
-		return !m.re.MatchString(string(metric[m.Name]))
+		return !m.re.MatchString(v)
 	default:
 		panic("unknown match type")
 	}
@@ -118,6 +119,41 @@ func (ms Matchers) Match(metric model.Metric) bool {
 	for _, m := range ms {
 		if !m.Match(metric) {
 			return false
+		}
+	}
+	return true
+}
+
+func (ms Matchers) MatchLabels(labels []*prompb.Label) bool {
+	// TODO if both matchers and labels are sorted by label name, we can optimize that method
+
+	for _, m := range ms {
+		if (m.re == nil) && (m.Type == MatchRegexp || m.Type == MatchNotRegexp) {
+			m.re = regexp.MustCompile("^(?:" + m.Value + ")$")
+		}
+
+		var label *prompb.Label
+		for _, l := range labels {
+			if string(m.Name) == l.Name {
+				label = l
+				break
+			}
+		}
+		if label == nil {
+			panic("TODO: label not found")
+		}
+
+		switch m.Type {
+		case MatchEqual:
+			return m.Value == label.Value
+		case MatchNotEqual:
+			return m.Value != label.Value
+		case MatchRegexp:
+			return m.re.MatchString(label.Value)
+		case MatchNotRegexp:
+			return !m.re.MatchString(label.Value)
+		default:
+			panic("unknown match type")
 		}
 	}
 	return true

@@ -330,6 +330,51 @@ func TestStorages(t *testing.T) {
 				}
 			})
 
+			t.Run("ReadBySeveralMatchers", func(t *testing.T) {
+				for _, q := range []Query{
+					{
+						Start: start,
+						End:   end,
+						Matchers: []Matcher{{
+							Name:  "__name__",
+							Type:  MatchEqual,
+							Value: "http_requests_total",
+						}, {
+							Name:  "no_such_label",
+							Type:  MatchNotEqual,
+							Value: "no_such_value",
+						}},
+					},
+
+					{
+						Start: start,
+						End:   end,
+						Matchers: []Matcher{{
+							Name:  "no_such_label",
+							Type:  MatchNotEqual,
+							Value: "no_such_value",
+						}, {
+							Name:  "__name__",
+							Type:  MatchEqual,
+							Value: "http_requests_total",
+						}},
+					},
+				} {
+					t.Run(q.String(), func(t *testing.T) {
+						data, err := storage.Read(context.Background(), []Query{q})
+						assert.NoError(t, err)
+						require.Len(t, data.Results, 1)
+						require.Len(t, data.Results[0].Timeseries, 3)
+						sortTimeSeries(data.Results[0].Timeseries)
+						for i, actual := range data.Results[0].Timeseries {
+							sortLabels(actual.Labels)
+							expected := storedData.Timeseries[i]
+							assert.Equal(t, expected, actual, messageTS(expected, actual))
+						}
+					})
+				}
+			})
+
 			t.Run("WriteFunnyLabels", func(t *testing.T) {
 				s := []*prompb.Sample{{Value: 1, Timestamp: int64(start)}}
 				storedData := &prompb.WriteRequest{

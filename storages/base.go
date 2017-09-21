@@ -131,23 +131,40 @@ func (ms Matchers) MatchLabels(labels []*prompb.Label) bool {
 				break
 			}
 		}
+
+		// if label not found, return false for positive matchers, continue otherwise
 		if label == nil {
-			return false
+			switch m.Type {
+			case MatchEqual, MatchRegexp:
+				return false
+			default:
+				continue
+			}
 		}
 
+		// return false if not matches, continue to the next matcher otherwise
 		switch m.Type {
 		case MatchEqual:
-			return m.Value == label.Value
+			if m.Value != label.Value {
+				return false
+			}
 		case MatchNotEqual:
-			return m.Value != label.Value
+			if m.Value == label.Value {
+				return false
+			}
 		case MatchRegexp:
-			return m.re.MatchString(label.Value)
+			if !m.re.MatchString(label.Value) {
+				return false
+			}
 		case MatchNotRegexp:
-			return !m.re.MatchString(label.Value)
+			if m.re.MatchString(label.Value) {
+				return false
+			}
 		default:
 			panic("unknown match type")
 		}
 	}
+
 	return true
 }
 

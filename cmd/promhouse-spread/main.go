@@ -135,8 +135,9 @@ func main() {
 		upstreamJobF            = flag.String("upstream-job", "promhouse-spread", "Upstream job name")
 		upstreamScrapeIntervalF = flag.Duration("upstream-scrape-interval", time.Second, "How often scrape upstream for metrics")
 		instancesF              = flag.Int("instances", 100, "Number of instances to generate")
-		spreadF                 = model.Duration(90 * 24 * time.Hour)
-		intervalF               = flag.Duration("interval", time.Second, "Spread metrics step")
+		// varianceF               = flag.Float64("variance", 0, "Variance (±%) ")
+		spreadF   = model.Duration(90 * 24 * time.Hour)
+		intervalF = flag.Duration("interval", time.Second, "Spread metrics step")
 	)
 	flag.Var(&spreadF, "spread", "Spread metrics over that interval")
 	flag.Parse()
@@ -216,9 +217,11 @@ func main() {
 				Value: *upstreamJobF,
 			})
 
+			v := float64(s.Value)
+			// rand
 			ts.Samples = []*prompb.Sample{
 				{
-					Value:     float64(s.Value),
+					Value:     v,
 					Timestamp: int64(model.TimeFromUnixNano(timestamp.UnixNano())),
 				},
 			}

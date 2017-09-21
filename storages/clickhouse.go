@@ -30,8 +30,6 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/sirupsen/logrus"
-
-	"github.com/Percona-Lab/PromHouse/util"
 )
 
 const (
@@ -47,7 +45,7 @@ type ClickHouse struct {
 	l        *logrus.Entry
 	database string
 
-	metrics   map[model.Fingerprint]model.Metric
+	metrics   map[uint64][]*prompb.Label
 	metricsRW sync.RWMutex
 
 	mMetricsCurrent             prometheus.Gauge
@@ -112,7 +110,7 @@ func NewClickHouse(dsn string, database string, init bool) (*ClickHouse, error) 
 		l:        l,
 		database: database,
 
-		metrics: make(map[model.Fingerprint]model.Metric, 8192),
+		metrics: make(map[uint64][]*prompb.Label, 8192),
 
 		mMetricsCurrent: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: namespace,
@@ -193,7 +191,7 @@ func (ch *ClickHouse) runMetricsReloader(ctx context.Context) {
 	q := fmt.Sprintf(`SELECT DISTINCT fingerprint, labels FROM %s.metrics`, ch.database)
 	for {
 		ch.metricsRW.RLock()
-		metrics := make(map[model.Fingerprint]model.Metric, len(ch.metrics))
+		metrics := make(map[uint64][]*prompb.Label, len(ch.metrics))
 		ch.metricsRW.RUnlock()
 
 		err := func() error {
@@ -210,11 +208,9 @@ func (ch *ClickHouse) runMetricsReloader(ctx context.Context) {
 				if err = rows.Scan(&f, &b); err != nil {
 					return err
 				}
-				var ls model.LabelSet
-				if err = ls.UnmarshalJSON(b); err != nil {
+				if metrics[f], err = unmarshalLabels(b); err != nil {
 					return err
 				}
-				metrics[model.Fingerprint(f)] = model.Metric(ls)
 			}
 			return rows.Err()
 		}()
@@ -237,15 +233,6 @@ func (ch *ClickHouse) runMetricsReloader(ctx context.Context) {
 		case <-ticker:
 		}
 	}
-}
-
-// makeMetric converts a slice of labels to a metric.
-func makeMetric(labels []*prompb.Label) model.Metric {
-	metric := make(model.Metric, len(labels))
-	for _, l := range labels {
-		metric[model.LabelName(l.Name)] = model.LabelValue(l.Value)
-	}
-	return metric
 }
 
 func (ch *ClickHouse) Describe(c chan<- *prometheus.Desc) {
@@ -317,6 +304,7 @@ func (ch *ClickHouse) Collect(c chan<- prometheus.Metric) {
 }
 
 func (ch *ClickHouse) Read(ctx context.Context, queries []Query) (res *prompb.ReadResponse, err error) {
+	// track time and response status
 	start := time.Now()
 	defer func() {
 		if err == nil {
@@ -340,9 +328,9 @@ func (ch *ClickHouse) Read(ctx context.Context, queries []Query) (res *prompb.Re
 		// find matching metrics
 		fingerprints := make(map[uint64]struct{}, 64)
 		ch.metricsRW.RLock()
-		for f, m := range ch.metrics {
-			if q.Matchers.Match(m) {
-				fingerprints[uint64(f)] = struct{}{}
+		for f, labels := range ch.metrics {
+			if q.Matchers.MatchLabels(labels) {
+				fingerprints[f] = struct{}{}
 			}
 		}
 		ch.metricsRW.RUnlock()
@@ -387,15 +375,8 @@ func (ch *ClickHouse) Read(ctx context.Context, queries []Query) (res *prompb.Re
 					}
 
 					ch.metricsRW.RLock()
-					m := ch.metrics[model.Fingerprint(fingerprint)]
+					labels := ch.metrics[fingerprint]
 					ch.metricsRW.RUnlock()
-					labels := make([]*prompb.Label, 0, len(m))
-					for n, v := range m {
-						labels = append(labels, &prompb.Label{
-							Name:  string(n),
-							Value: string(v),
-						})
-					}
 					ts = &prompb.TimeSeries{
 						Labels: labels,
 					}
@@ -435,6 +416,7 @@ func inTransaction(ctx context.Context, db *sql.DB, f func(*sql.Tx) error) (err 
 }
 
 func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err error) {
+	// track time and response status
 	start := time.Now()
 	defer func() {
 		if err == nil {
@@ -449,21 +431,21 @@ func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 		ch.mWriteErrors.WithLabelValues(t).Inc()
 	}()
 
-	// make metrics and calculate fingerprints
-	timeseries := make([]model.Fingerprint, len(data.Timeseries))
-	metrics := make(map[model.Fingerprint]model.Metric, len(data.Timeseries))
+	// calculate fingerprints, map them to metrics
+	fingerprints := make([]uint64, len(data.Timeseries))
+	metrics := make(map[uint64][]*prompb.Label, len(data.Timeseries))
 	for i, ts := range data.Timeseries {
-		m := makeMetric(ts.Labels)
-		f := m.Fingerprint()
-		timeseries[i] = f
-		metrics[f] = m
+		sortLabels(ts.Labels)
+		f := fingerprint(ts.Labels)
+		fingerprints[i] = f
+		metrics[f] = ts.Labels
 	}
-	if len(timeseries) != len(metrics) {
-		ch.l.Debugf("got %d timeseries, but only %d of them are unique metrics", len(timeseries), len(metrics))
+	if len(fingerprints) != len(metrics) {
+		ch.l.Debugf("got %d fingerprints, but only %d of them were unique metrics", len(fingerprints), len(metrics))
 	}
 
 	// find new metrics
-	var newMetrics []model.Fingerprint
+	var newMetrics []uint64
 	ch.metricsRW.Lock()
 	for f, m := range metrics {
 		_, ok := ch.metrics[f]
@@ -486,8 +468,8 @@ func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 			args := make([]interface{}, 3)
 			args[0] = model.Now().Time()
 			for _, f := range newMetrics {
-				args[1] = uint64(f)
-				args[2] = util.MarshalMetric(metrics[f])
+				args[1] = f
+				args[2] = marshalLabels(metrics[f], make([]byte, 0, 128)) // TODO use pool?
 				ch.l.Debugf("%s %v", query, args)
 				if _, err = stmt.ExecContext(ctx, args...); err != nil {
 					return errors.WithStack(err)
@@ -512,7 +494,7 @@ func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 
 		args := make([]interface{}, 4)
 		for i, ts := range data.Timeseries {
-			args[1] = uint64(timeseries[i])
+			args[1] = fingerprints[i]
 
 			for _, s := range ts.Samples {
 				args[0] = model.Time(s.Timestamp).Time()

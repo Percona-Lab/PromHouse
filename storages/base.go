@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -75,7 +76,7 @@ func (m MatchType) String() string {
 }
 
 type Matcher struct {
-	Name  model.LabelName
+	Name  string
 	Type  MatchType
 	Value string
 	re    *regexp.Regexp
@@ -85,26 +86,9 @@ func (m Matcher) String() string {
 	return fmt.Sprintf("%s%s%q", m.Name, m.Type, m.Value)
 }
 
-func (m *Matcher) Match(metric model.Metric) bool {
-	if (m.re == nil) && (m.Type == MatchRegexp || m.Type == MatchNotRegexp) {
-		m.re = regexp.MustCompile("^(?:" + m.Value + ")$")
-	}
-
-	switch m.Type {
-	case MatchEqual:
-		return string(metric[m.Name]) == m.Value
-	case MatchNotEqual:
-		return string(metric[m.Name]) != m.Value
-	case MatchRegexp:
-		return m.re.MatchString(string(metric[m.Name]))
-	case MatchNotRegexp:
-		return !m.re.MatchString(string(metric[m.Name]))
-	default:
-		panic("unknown match type")
-	}
-}
-
 type Matchers []Matcher
+
+var emptyLabel = &prompb.Label{}
 
 func (ms Matchers) String() string {
 	res := make([]string, len(ms))
@@ -114,13 +98,71 @@ func (ms Matchers) String() string {
 	return "{" + strings.Join(res, ",") + "}"
 }
 
-func (ms Matchers) Match(metric model.Metric) bool {
+func (ms Matchers) MatchLabels(labels []*prompb.Label) bool {
+	// TODO if both matchers and labels are sorted by label name, we can optimize that method
+
+	// We expect that from Prometheus (from https://prometheus.io/docs/querying/basics/):
+	// * Label matchers that match empty label values also select all time series that do not have the specific label set at all.
+	// * At least one matcher should have non-empty label value.
+	// Check it.
+	if len(ms) == 0 {
+		panic("MatchLabels: empty matchers")
+	}
+	var hasValue bool
 	for _, m := range ms {
-		if !m.Match(metric) {
-			return false
+		if m.Name == "" {
+			panic("MatchLabels: empty label name")
+		}
+		if m.Value != "" {
+			hasValue = true
 		}
 	}
+	if !hasValue {
+		panic("MatchLabels: all labels has empty values")
+	}
+
+	for _, m := range ms {
+		if (m.re == nil) && (m.Type == MatchRegexp || m.Type == MatchNotRegexp) {
+			m.re = regexp.MustCompile("^(?:" + m.Value + ")$")
+		}
+
+		label := emptyLabel
+		for _, l := range labels {
+			if m.Name == l.Name {
+				label = l
+				break
+			}
+		}
+
+		// return false if not matches, continue to the next matcher otherwise
+		switch m.Type {
+		case MatchEqual:
+			if m.Value != label.Value {
+				return false
+			}
+		case MatchNotEqual:
+			if m.Value == label.Value {
+				return false
+			}
+		case MatchRegexp:
+			if !m.re.MatchString(label.Value) {
+				return false
+			}
+		case MatchNotRegexp:
+			if m.re.MatchString(label.Value) {
+				return false
+			}
+		default:
+			panic("unknown match type")
+		}
+	}
+
 	return true
+}
+
+// sortLabels sorts labels by name.
+func sortLabels(labels []*prompb.Label) {
+	sort.Slice(labels, func(i, j int) bool { return labels[i].Name < labels[j].Name })
 }
 
 // check interfaces

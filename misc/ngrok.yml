@@ -1,0 +1,10 @@
+---
+tunnels:
+  grafana:
+    proto: http
+    addr: 3000
+    subdomain: promhouse
+  promhouse-prometheus:
+    proto: http
+    addr: 9090
+    subdomain: promhouse-prometheus

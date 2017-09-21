@@ -19,8 +19,9 @@ sudo docker-compose --version
 
 curl -O https://storage.googleapis.com/golang/go1.9.linux-amd64.tar.gz
 tar xzf go1.9.linux-amd64.tar.gz
+sudo rm -fr /usr/local/go
 sudo mv go /usr/local/
 rm go1.9.linux-amd64.tar.gz
-sudo ln -vs /usr/local/go/bin/* /usr/local/bin
+sudo ln -fvs /usr/local/go/bin/* /usr/local/bin
 
 go get -u -v github.com/Percona-Lab/PromHouse/cmd/...

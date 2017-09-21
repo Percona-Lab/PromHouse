@@ -22,7 +22,7 @@ scrape_configs:
       - targets: ['docker.for.mac.localhost:9100']
 
 remote_read:
-  - url: http://docker.for.mac.localhost:7781/read
+  - url: http://docker.for.mac.localhost:7781/prom2/read
 
 remote_write:
-  - url: http://docker.for.mac.localhost:7781/write
+  - url: http://docker.for.mac.localhost:7781/prom2/write

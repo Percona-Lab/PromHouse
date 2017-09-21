@@ -26,17 +26,17 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 
-	prompb "github.com/Percona-Lab/PromHouse/prompb/prom2"
+	prom2 "github.com/Percona-Lab/PromHouse/prompb/prom2"
 )
 
 // Storage represents generic storage.
 type Storage interface {
 	// Read runs queries in the storage and returns the same amount of matrixes.
 	// Event if they are empty, they must be present in the returned slice.
-	Read(context.Context, []Query) (*prompb.ReadResponse, error)
+	Read(context.Context, []Query) (*prom2.ReadResponse, error)
 
 	// Write puts data into storage.
-	Write(context.Context, *prompb.WriteRequest) error
+	Write(context.Context, *prom2.WriteRequest) error
 
 	prometheus.Collector
 }
@@ -89,7 +89,7 @@ func (m Matcher) String() string {
 
 type Matchers []Matcher
 
-var emptyLabel = &prompb.Label{}
+var emptyLabel = &prom2.Label{}
 
 func (ms Matchers) String() string {
 	res := make([]string, len(ms))
@@ -99,7 +99,7 @@ func (ms Matchers) String() string {
 	return "{" + strings.Join(res, ",") + "}"
 }
 
-func (ms Matchers) MatchLabels(labels []*prompb.Label) bool {
+func (ms Matchers) MatchLabels(labels []*prom2.Label) bool {
 	// TODO if both matchers and labels are sorted by label name, we can optimize that method
 
 	// We expect that from Prometheus (from https://prometheus.io/docs/querying/basics/):
@@ -162,7 +162,7 @@ func (ms Matchers) MatchLabels(labels []*prompb.Label) bool {
 }
 
 // sortLabels sorts labels by name.
-func sortLabels(labels []*prompb.Label) {
+func sortLabels(labels []*prom2.Label) {
 	sort.Slice(labels, func(i, j int) bool { return labels[i].Name < labels[j].Name })
 }
 

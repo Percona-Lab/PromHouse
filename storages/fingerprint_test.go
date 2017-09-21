@@ -21,7 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	prompb "github.com/Percona-Lab/PromHouse/prompb/prom2"
+	prom2 "github.com/Percona-Lab/PromHouse/prompb/prom2"
 )
 
 func TestFingerprints(t *testing.T) {
@@ -38,7 +38,7 @@ func TestFingerprints(t *testing.T) {
 }
 
 var (
-	labelsB = []*prompb.Label{
+	labelsB = []*prom2.Label{
 		{Name: "__name__", Value: "http_requests_total"},
 		{Name: "code", Value: "200"},
 		{Name: "handler", Value: "query"},

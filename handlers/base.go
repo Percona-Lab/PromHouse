@@ -14,36 +14,43 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-package storages
+package handlers
 
 import (
-	"context"
+	"io/ioutil"
+	"net/http"
+	"sync"
 
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/gogo/protobuf/proto"
+	"github.com/golang/snappy"
+	"github.com/sirupsen/logrus"
 
-	prom2 "github.com/Percona-Lab/PromHouse/prompb/prom2"
+	"github.com/Percona-Lab/PromHouse/storages"
 )
 
-// Blackhole is a non-functional dummy storage for testing.
-type Blackhole struct{}
-
-func NewBlackhole() *Blackhole {
-	return new(Blackhole)
+type PromAPI struct {
+	Storage storages.Storage
+	Logger  *logrus.Entry
 }
 
-func (m *Blackhole) Describe(c chan<- *prometheus.Desc) {
+var snappyPool = sync.Pool{
+	New: func() interface{} {
+		return make([]byte, 1024)
+	},
 }
 
-func (m *Blackhole) Collect(c chan<- prometheus.Metric) {
-}
+func readPB(req *http.Request, pb proto.Unmarshaler) error {
+	compressed, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		return err
+	}
 
-func (m *Blackhole) Read(ctx context.Context, queries []Query) (*prom2.ReadResponse, error) {
-	return nil, nil
+	dst := snappyPool.Get().([]byte)
+	dst = dst[:cap(dst)]
+	b, err := snappy.Decode(dst, compressed)
+	if err == nil {
+		err = pb.Unmarshal(b)
+	}
+	snappyPool.Put(b)
+	return err
 }
-
-func (m *Blackhole) Write(ctx context.Context, data *prom2.WriteRequest) error {
-	return nil
-}
-
-// check interface
-var _ Storage = (*Blackhole)(nil)

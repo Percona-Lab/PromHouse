@@ -35,7 +35,7 @@ import (
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"
 
-	prompb "github.com/Percona-Lab/PromHouse/prompb/prom2"
+	prom2 "github.com/Percona-Lab/PromHouse/prompb/prom2"
 )
 
 type client struct {
@@ -98,7 +98,7 @@ func (c *client) get() (model.Vector, error) {
 	return v, nil
 }
 
-func (c *client) write(request *prompb.WriteRequest) error {
+func (c *client) write(request *prom2.WriteRequest) error {
 	b, err := proto.Marshal(request)
 	if err != nil {
 		return err
@@ -160,7 +160,7 @@ func main() {
 	}()
 
 	// run writers
-	requests := make(chan *prompb.WriteRequest)
+	requests := make(chan *prom2.WriteRequest)
 	var wg sync.WaitGroup
 	for i := 0; i < *writersF; i++ {
 		wg.Add(1)
@@ -199,25 +199,25 @@ func main() {
 		}
 
 		var samples int
-		req := &prompb.WriteRequest{
-			Timeseries: make([]*prompb.TimeSeries, 0, len(v)**instancesF),
+		req := &prom2.WriteRequest{
+			Timeseries: make([]*prom2.TimeSeries, 0, len(v)**instancesF),
 		}
 		for _, s := range v {
-			ts := &prompb.TimeSeries{
-				Labels: make([]*prompb.Label, 1, len(s.Metric)+1),
+			ts := &prom2.TimeSeries{
+				Labels: make([]*prom2.Label, 1, len(s.Metric)+1),
 			}
 			for k, v := range s.Metric {
-				ts.Labels = append(ts.Labels, &prompb.Label{
+				ts.Labels = append(ts.Labels, &prom2.Label{
 					Name:  string(k),
 					Value: string(v),
 				})
 			}
-			ts.Labels = append(ts.Labels, &prompb.Label{
+			ts.Labels = append(ts.Labels, &prom2.Label{
 				Name:  "job",
 				Value: *upstreamJobF,
 			})
 
-			ts.Samples = []*prompb.Sample{
+			ts.Samples = []*prom2.Sample{
 				{
 					Value:     float64(s.Value),
 					Timestamp: int64(model.TimeFromUnixNano(timestamp.UnixNano())),
@@ -227,7 +227,7 @@ func main() {
 
 			// make timeserie for each instance
 			for i := 0; i < *instancesF; i++ {
-				ts.Labels[0] = &prompb.Label{
+				ts.Labels[0] = &prom2.Label{
 					Name:  "instance",
 					Value: fmt.Sprintf(instanceFormat, i),
 				}

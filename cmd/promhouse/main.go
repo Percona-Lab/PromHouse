@@ -86,8 +86,8 @@ func runPromServer(ctx context.Context) {
 		})
 	}
 
-	handleFunc("/read", promAPI.Read)
-	handleFunc("/write", promAPI.Write)
+	handleFunc("/prom2/read", promAPI.Read2)
+	handleFunc("/prom2/write", promAPI.Write2)
 
 	l.Printf("Starting server on http://%s/", *promAddrF)
 

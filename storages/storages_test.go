@@ -27,21 +27,21 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	prompb "github.com/Percona-Lab/PromHouse/prompb/prom2"
+	prom2 "github.com/Percona-Lab/PromHouse/prompb/prom2"
 )
 
-func getData() *prompb.WriteRequest {
+func getData() *prom2.WriteRequest {
 	start := model.Now().Add(-6 * time.Second)
 
-	return &prompb.WriteRequest{
-		Timeseries: []*prompb.TimeSeries{
+	return &prom2.WriteRequest{
+		Timeseries: []*prom2.TimeSeries{
 			{
-				Labels: []*prompb.Label{
+				Labels: []*prom2.Label{
 					{Name: "__name__", Value: "http_requests_total"},
 					{Name: "code", Value: "200"},
 					{Name: "handler", Value: "query"},
 				},
-				Samples: []*prompb.Sample{
+				Samples: []*prom2.Sample{
 					{Value: 13, Timestamp: int64(start)},
 					{Value: 14, Timestamp: int64(start.Add(1 * time.Second))},
 					{Value: 14, Timestamp: int64(start.Add(2 * time.Second))},
@@ -50,12 +50,12 @@ func getData() *prompb.WriteRequest {
 				},
 			},
 			{
-				Labels: []*prompb.Label{
+				Labels: []*prom2.Label{
 					{Name: "__name__", Value: "http_requests_total"},
 					{Name: "code", Value: "400"},
 					{Name: "handler", Value: "query_range"},
 				},
-				Samples: []*prompb.Sample{
+				Samples: []*prom2.Sample{
 					{Value: 9, Timestamp: int64(start)},
 					{Value: 9, Timestamp: int64(start.Add(1 * time.Second))},
 					{Value: 9, Timestamp: int64(start.Add(2 * time.Second))},
@@ -64,12 +64,12 @@ func getData() *prompb.WriteRequest {
 				},
 			},
 			{
-				Labels: []*prompb.Label{
+				Labels: []*prom2.Label{
 					{Name: "__name__", Value: "http_requests_total"},
 					{Name: "code", Value: "200"},
 					{Name: "handler", Value: "prometheus"},
 				},
-				Samples: []*prompb.Sample{
+				Samples: []*prom2.Sample{
 					{Value: 591, Timestamp: int64(start)},
 					{Value: 592, Timestamp: int64(start.Add(1 * time.Second))},
 					{Value: 593, Timestamp: int64(start.Add(2 * time.Second))},
@@ -82,7 +82,7 @@ func getData() *prompb.WriteRequest {
 }
 
 // sortTimeSeries sorts timeseries by metric name and fingerprint.
-func sortTimeSeries(timeSeries []*prompb.TimeSeries) {
+func sortTimeSeries(timeSeries []*prom2.TimeSeries) {
 	sort.Slice(timeSeries, func(i, j int) bool {
 		var nameI, nameJ string
 		for _, l := range timeSeries[i].Labels {
@@ -107,7 +107,7 @@ func sortTimeSeries(timeSeries []*prompb.TimeSeries) {
 	})
 }
 
-func makeMetric(labels []*prompb.Label) model.Metric {
+func makeMetric(labels []*prom2.Label) model.Metric {
 	metric := make(model.Metric, len(labels))
 	for _, l := range labels {
 		metric[model.LabelName(l.Name)] = model.LabelValue(l.Value)
@@ -115,7 +115,7 @@ func makeMetric(labels []*prompb.Label) model.Metric {
 	return metric
 }
 
-func formatTS(ts *prompb.TimeSeries) string {
+func formatTS(ts *prom2.TimeSeries) string {
 	res := makeMetric(ts.Labels).String()
 	for _, s := range ts.Samples {
 		res += "\n\t" + model.SamplePair{
@@ -126,7 +126,7 @@ func formatTS(ts *prompb.TimeSeries) string {
 	return res
 }
 
-func messageTS(expected, actual *prompb.TimeSeries) string {
+func messageTS(expected, actual *prom2.TimeSeries) string {
 	return fmt.Sprintf("expected = %s\nactual  = %s", formatTS(expected), formatTS(actual))
 }
 
@@ -394,15 +394,15 @@ func TestStorages(t *testing.T) {
 			})
 
 			t.Run("WriteFunnyLabels", func(t *testing.T) {
-				s := []*prompb.Sample{{Value: 1, Timestamp: int64(start)}}
-				storedData := &prompb.WriteRequest{
-					Timeseries: []*prompb.TimeSeries{
-						{Labels: []*prompb.Label{{"__name__", "funny_1"}, {"label", ""}}, Samples: s},
-						{Labels: []*prompb.Label{{"__name__", "funny_2"}, {"label", "'`\"\\"}}, Samples: s},
-						{Labels: []*prompb.Label{{"__name__", "funny_3"}, {"label", "''``\"\"\\\\"}}, Samples: s},
-						{Labels: []*prompb.Label{{"__name__", "funny_4"}, {"label", "'''```\"\"\"\\\\\\"}}, Samples: s},
-						{Labels: []*prompb.Label{{"__name__", "funny_5"}, {"label", `\ \\ \\\\ \\\\`}}, Samples: s},
-						{Labels: []*prompb.Label{{"__name__", "funny_6"}, {"label", "🆗"}}, Samples: s},
+				s := []*prom2.Sample{{Value: 1, Timestamp: int64(start)}}
+				storedData := &prom2.WriteRequest{
+					Timeseries: []*prom2.TimeSeries{
+						{Labels: []*prom2.Label{{"__name__", "funny_1"}, {"label", ""}}, Samples: s},
+						{Labels: []*prom2.Label{{"__name__", "funny_2"}, {"label", "'`\"\\"}}, Samples: s},
+						{Labels: []*prom2.Label{{"__name__", "funny_3"}, {"label", "''``\"\"\\\\"}}, Samples: s},
+						{Labels: []*prom2.Label{{"__name__", "funny_4"}, {"label", "'''```\"\"\"\\\\\\"}}, Samples: s},
+						{Labels: []*prom2.Label{{"__name__", "funny_5"}, {"label", `\ \\ \\\\ \\\\`}}, Samples: s},
+						{Labels: []*prom2.Label{{"__name__", "funny_6"}, {"label", "🆗"}}, Samples: s},
 					},
 				}
 				require.NoError(t, storage.Write(context.Background(), storedData))

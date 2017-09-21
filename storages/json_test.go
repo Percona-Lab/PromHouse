@@ -54,19 +54,15 @@ func TestMarshalMetricsAndLabels(t *testing.T) {
 		},
 	} {
 		metric := makeMetric(labels)
-		b1 := marshalMetric(metric)
-		b2 := marshalLabels(labels, nil)
-		b3, err := json.Marshal(metric)
+		b1 := marshalLabels(labels, nil)
+		b2, err := json.Marshal(metric)
 		require.NoError(t, err)
 
 		m1 := make(model.Metric)
 		require.NoError(t, json.Unmarshal(b1, &m1))
 		m2 := make(model.Metric)
 		require.NoError(t, json.Unmarshal(b2, &m2))
-		m3 := make(model.Metric)
-		require.NoError(t, json.Unmarshal(b3, &m3))
-		assert.Equal(t, m3, m1)
-		assert.Equal(t, m3, m2)
+		assert.Equal(t, m2, m1)
 
 		byName := func(labels []*prompb.Label) func(i, j int) bool {
 			return func(i, j int) bool {
@@ -76,15 +72,11 @@ func TestMarshalMetricsAndLabels(t *testing.T) {
 
 		l1, err := unmarshalLabels(b1)
 		require.NoError(t, err)
-		sort.Slice(l1, byName(l1)) // b1 is created from metric (map), so we need to restore order
 		l2, err := unmarshalLabels(b2)
 		require.NoError(t, err)
-		l3, err := unmarshalLabels(b3)
-		require.NoError(t, err)
-		sort.Slice(l3, byName(l3)) // b3 is created by json.Marshal, so we need to restore order
+		sort.Slice(l2, byName(l2)) // b2 is created by json.Marshal, so we need to restore order
 		assert.Equal(t, labels, l1)
 		assert.Equal(t, labels, l2)
-		assert.Equal(t, labels, l3)
 	}
 }
 
@@ -101,15 +93,6 @@ func BenchmarkMarshalJSON(b *testing.B) {
 	b.StopTimer()
 
 	require.NoError(b, err)
-}
-
-func BenchmarkMarshalMetric(b *testing.B) {
-	metric := makeMetric(labelsB)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		sink = marshalMetric(metric)
-	}
 }
 
 func BenchmarkMarshalLabels(b *testing.B) {

@@ -104,6 +104,14 @@ func sortLabels(labels []*prompb.Label) {
 	sort.Slice(labels, func(i, j int) bool { return labels[i].Name < labels[j].Name })
 }
 
+func makeMetric(labels []*prompb.Label) model.Metric {
+	metric := make(model.Metric, len(labels))
+	for _, l := range labels {
+		metric[model.LabelName(l.Name)] = model.LabelValue(l.Value)
+	}
+	return metric
+}
+
 func TestStorages(t *testing.T) {
 	// level := logrus.GetLevel()
 	// logrus.SetLevel(logrus.DebugLevel)

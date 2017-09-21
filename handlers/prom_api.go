@@ -83,7 +83,7 @@ func (p *PromAPI) convertReadRequest(request *prompb.ReadRequest) []storages.Que
 
 			q.Matchers[j] = storages.Matcher{
 				Type:  t,
-				Name:  model.LabelName(m.Name),
+				Name:  m.Name,
 				Value: m.Value,
 			}
 			if m.Value != "" {

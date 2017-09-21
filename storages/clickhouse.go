@@ -236,15 +236,6 @@ func (ch *ClickHouse) runMetricsReloader(ctx context.Context) {
 	}
 }
 
-// TODO remove
-func makeMetric(labels []*prompb.Label) model.Metric {
-	metric := make(model.Metric, len(labels))
-	for _, l := range labels {
-		metric[model.LabelName(l.Name)] = model.LabelValue(l.Value)
-	}
-	return metric
-}
-
 func (ch *ClickHouse) Describe(c chan<- *prometheus.Desc) {
 	ch.mMetricsCurrent.Describe(c)
 	ch.mSamplesCurrent.Describe(c)
@@ -339,7 +330,7 @@ func (ch *ClickHouse) Read(ctx context.Context, queries []Query) (res *prompb.Re
 		fingerprints := make(map[uint64]struct{}, 64)
 		ch.metricsRW.RLock()
 		for f, labels := range ch.metrics {
-			if q.Matchers.Match(makeMetric(labels)) {
+			if q.Matchers.MatchLabels(labels) {
 				fingerprints[f] = struct{}{}
 			}
 		}

@@ -53,9 +53,8 @@ func TestMarshalMetricsAndLabels(t *testing.T) {
 			&prompb.Label{Name: "label", Value: "🆗"},
 		},
 	} {
-		metric := makeMetric(labels)
 		b1 := marshalLabels(labels, nil)
-		b2, err := json.Marshal(metric)
+		b2, err := json.Marshal(makeMetric(labels))
 		require.NoError(t, err)
 
 		m1 := make(model.Metric)

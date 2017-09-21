@@ -39,7 +39,7 @@ var snappyPool = sync.Pool{
 	},
 }
 
-func readPB(req *http.Request, pb proto.Unmarshaler) error {
+func readPB(req *http.Request, pb proto.Message) error {
 	compressed, err := ioutil.ReadAll(req.Body)
 	if err != nil {
 		return err
@@ -49,7 +49,7 @@ func readPB(req *http.Request, pb proto.Unmarshaler) error {
 	dst = dst[:cap(dst)]
 	b, err := snappy.Decode(dst, compressed)
 	if err == nil {
-		err = pb.Unmarshal(b)
+		err = proto.Unmarshal(b, pb)
 	}
 	snappyPool.Put(b)
 	return err

@@ -1,0 +1,4 @@
+# tools
+required = [
+  # "github.com/gogo/protobuf/protoc-gen-gogofast"
+]

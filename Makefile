@@ -1,24 +1,29 @@
 all: test
 
-PACKAGES := $(shell go list ./... | grep -v vendor)
-
 init:
 	go get -u github.com/AlekSi/gocoverutil
+	go get -u gopkg.in/alecthomas/gometalinter.v1
+	gometalinter.v1 --install
+
+protos:
+	go install -v ./vendor/github.com/golang/protobuf/protoc-gen-go
+	rm -f prompb/*.pb.go
+	protoc -Iprompb prompb/*.proto --go_out=prompb
 
 install:
-	go install -v $(PACKAGES)
+	go install -v ./...
 
 install-race:
-	go install -v -race $(PACKAGES)
+	go install -v -race ./...
 
 test: install
-	go test -v $(PACKAGES)
+	go test -v ./...
 
 test-race: install-race
-	go test -v -race $(PACKAGES)
+	go test -v -race ./...
 
 bench: install
-	go test -bench=. -benchtime=10s -benchmem -v $(PACKAGES)
+	go test -bench=. -benchtime=10s -benchmem -v ./...
 
 run: install
 	promhouse -debug
@@ -27,7 +32,10 @@ run-race: install-race
 	promhouse -debug
 
 cover: install
-	gocoverutil test -v $(PACKAGES)
+	gocoverutil test -v ./...
+
+check: install
+	-gometalinter.v1 --tests --deadline=180s ./...
 
 env-run:
 	docker-compose -f misc/docker-compose.yml -p promhouse up

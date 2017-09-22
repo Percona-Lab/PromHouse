@@ -22,7 +22,8 @@ import (
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/prometheus/prompb"
+
+	"github.com/Percona-Lab/PromHouse/prompb"
 )
 
 // Memory is a functional dummy storage for testing.
@@ -63,10 +64,10 @@ func (m *Memory) Read(ctx context.Context, queries []Query) (*prompb.ReadRespons
 				var ts *prompb.TimeSeries
 				start, end := int64(q.Start), int64(q.End)
 				for _, sp := range m.samples[f] {
-					if sp.Timestamp < start {
+					if sp.TimestampMs < start {
 						continue
 					}
-					if sp.Timestamp > end {
+					if sp.TimestampMs > end {
 						break
 					}
 					if ts == nil {
@@ -77,7 +78,7 @@ func (m *Memory) Read(ctx context.Context, queries []Query) (*prompb.ReadRespons
 					ts.Samples = append(ts.Samples, sp)
 				}
 				if ts != nil {
-					res.Results[i].Timeseries = append(res.Results[i].Timeseries, ts)
+					res.Results[i].TimeSeries = append(res.Results[i].TimeSeries, ts)
 				}
 			}
 		}
@@ -94,14 +95,14 @@ func (m *Memory) Write(ctx context.Context, data *prompb.WriteRequest) error {
 		return ctx.Err()
 	}
 
-	for _, ts := range data.Timeseries {
+	for _, ts := range data.TimeSeries {
 		sortLabels(ts.Labels)
 		f := fingerprint(ts.Labels)
 		m.metrics[f] = ts.Labels
 
 		s := m.samples[f]
 		s = append(s, ts.Samples...)
-		less := func(i, j int) bool { return s[i].Timestamp < s[j].Timestamp }
+		less := func(i, j int) bool { return s[i].TimestampMs < s[j].TimestampMs }
 		if !sort.SliceIsSorted(s, less) {
 			sort.Slice(s, less)
 		}

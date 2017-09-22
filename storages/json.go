@@ -19,7 +19,7 @@ package storages
 import (
 	"encoding/json"
 
-	"github.com/prometheus/prometheus/prompb"
+	"github.com/Percona-Lab/PromHouse/prompb"
 )
 
 // marshalLabels marshals Prometheus labels into JSON, appending it to b.

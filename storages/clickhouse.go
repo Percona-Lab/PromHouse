@@ -28,8 +28,9 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/prompb"
 	"github.com/sirupsen/logrus"
+
+	prompb "github.com/Percona-Lab/PromHouse/prompb"
 )
 
 const (
@@ -85,10 +86,10 @@ func NewClickHouse(dsn string, database string, init bool) (*ClickHouse, error) 
 		CREATE TABLE IF NOT EXISTS %s.samples (
 			date Date,
 			fingerprint UInt64,
-			timestamp Int64,
+			timestamp_ms Int64,
 			value Float64
 		)
-		ENGINE = MergeTree(date, (fingerprint, timestamp), 8192)`, database))
+		ENGINE = MergeTree(date, (fingerprint, timestamp_ms), 8192)`, database))
 
 	queries = append(queries, fmt.Sprintf(`
 		CREATE TABLE IF NOT EXISTS %s.metrics (
@@ -340,10 +341,10 @@ func (ch *ClickHouse) Read(ctx context.Context, queries []Query) (res *prompb.Re
 
 		placeholders := strings.Repeat("?, ", len(fingerprints))
 		query := fmt.Sprintf(`
-			SELECT fingerprint, timestamp, value
+			SELECT fingerprint, timestamp_ms, value
 				FROM %s.samples
-				WHERE fingerprint IN (%s) AND timestamp >= ? AND timestamp <= ?
-				ORDER BY fingerprint, timestamp`,
+				WHERE fingerprint IN (%s) AND timestamp_ms >= ? AND timestamp_ms <= ?
+				ORDER BY fingerprint, timestamp_ms`,
 			ch.database, placeholders[:len(placeholders)-2], // cut last ", "
 		)
 		args := make([]interface{}, 0, len(fingerprints)+2)
@@ -362,16 +363,16 @@ func (ch *ClickHouse) Read(ctx context.Context, queries []Query) (res *prompb.Re
 
 			var ts *prompb.TimeSeries
 			var fingerprint, prevFingerprint uint64
-			var timestamp int64
+			var timestampMs int64
 			var value float64
 			for rows.Next() {
-				if err = rows.Scan(&fingerprint, &timestamp, &value); err != nil {
+				if err = rows.Scan(&fingerprint, &timestampMs, &value); err != nil {
 					return errors.WithStack(err)
 				}
 				if fingerprint != prevFingerprint {
 					prevFingerprint = fingerprint
 					if ts != nil {
-						res.Results[i].Timeseries = append(res.Results[i].Timeseries, ts)
+						res.Results[i].TimeSeries = append(res.Results[i].TimeSeries, ts)
 					}
 
 					ch.metricsRW.RLock()
@@ -382,12 +383,12 @@ func (ch *ClickHouse) Read(ctx context.Context, queries []Query) (res *prompb.Re
 					}
 				}
 				ts.Samples = append(ts.Samples, &prompb.Sample{
-					Timestamp: timestamp,
-					Value:     value,
+					TimestampMs: timestampMs,
+					Value:       value,
 				})
 			}
 			if ts != nil {
-				res.Results[i].Timeseries = append(res.Results[i].Timeseries, ts)
+				res.Results[i].TimeSeries = append(res.Results[i].TimeSeries, ts)
 			}
 			return errors.WithStack(rows.Err())
 		}()
@@ -432,9 +433,9 @@ func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 	}()
 
 	// calculate fingerprints, map them to metrics
-	fingerprints := make([]uint64, len(data.Timeseries))
-	metrics := make(map[uint64][]*prompb.Label, len(data.Timeseries))
-	for i, ts := range data.Timeseries {
+	fingerprints := make([]uint64, len(data.TimeSeries))
+	metrics := make(map[uint64][]*prompb.Label, len(data.TimeSeries))
+	for i, ts := range data.TimeSeries {
 		sortLabels(ts.Labels)
 		f := fingerprint(ts.Labels)
 		fingerprints[i] = f
@@ -486,19 +487,19 @@ func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 	// write samples
 	var samples int
 	err = inTransaction(ctx, ch.db, func(tx *sql.Tx) error {
-		query := fmt.Sprintf(`INSERT INTO %s.samples (date, fingerprint, timestamp, value) VALUES (?, ?, ?, ?)`, ch.database)
+		query := fmt.Sprintf(`INSERT INTO %s.samples (date, fingerprint, timestamp_ms, value) VALUES (?, ?, ?, ?)`, ch.database)
 		var stmt *sql.Stmt
 		if stmt, err = tx.PrepareContext(ctx, query); err != nil {
 			return errors.WithStack(err)
 		}
 
 		args := make([]interface{}, 4)
-		for i, ts := range data.Timeseries {
+		for i, ts := range data.TimeSeries {
 			args[1] = fingerprints[i]
 
 			for _, s := range ts.Samples {
-				args[0] = model.Time(s.Timestamp).Time()
-				args[2] = s.Timestamp
+				args[0] = model.Time(s.TimestampMs).Time()
+				args[2] = s.TimestampMs
 				args[3] = s.Value
 				ch.l.Debugf("%s %v", query, args)
 				if _, err = stmt.ExecContext(ctx, args...); err != nil {

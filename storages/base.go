@@ -25,7 +25,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/prompb"
+
+	"github.com/Percona-Lab/PromHouse/prompb"
 )
 
 // Storage represents generic storage.

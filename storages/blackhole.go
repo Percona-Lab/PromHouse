@@ -20,7 +20,8 @@ import (
 	"context"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/prometheus/prompb"
+
+	"github.com/Percona-Lab/PromHouse/prompb"
 )
 
 // Blackhole is a non-functional dummy storage for testing.

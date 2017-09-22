@@ -15,27 +15,21 @@
 
 [[projects]]
   name = "github.com/gogo/protobuf"
-  packages = ["proto","sortkeys","types"]
+  packages = ["proto"]
   revision = "100ba4e885062801d56799d78530b73b178a78f3"
   version = "v0.4"
 
 [[projects]]
   branch = "master"
   name = "github.com/golang/protobuf"
-  packages = ["jsonpb","proto","protoc-gen-go/descriptor","ptypes/any","ptypes/struct"]
-  revision = "ab9f9a6dab164b7d1246e0e688b0ab7b94d8553e"
+  packages = ["proto","protoc-gen-go","protoc-gen-go/descriptor","protoc-gen-go/generator","protoc-gen-go/grpc","protoc-gen-go/plugin"]
+  revision = "130e6b02ab059e7b717a096f397c5b60111cae74"
 
 [[projects]]
   branch = "master"
   name = "github.com/golang/snappy"
   packages = ["."]
   revision = "553a641470496b2327abcac10b36396bd98e45c9"
-
-[[projects]]
-  name = "github.com/grpc-ecosystem/grpc-gateway"
-  packages = ["runtime","runtime/internal","utilities"]
-  revision = "589b126116b5fc961939b3e156c29e4d9d58222f"
-  version = "v1.2.2"
 
 [[projects]]
   name = "github.com/kshvakov/clickhouse"
@@ -86,12 +80,6 @@
   revision = "e645f4e5aaa8506fc71d6edbc5c4ff02c04c46f2"
 
 [[projects]]
-  name = "github.com/prometheus/prometheus"
-  packages = ["prompb"]
-  revision = "1b80f631a88a01473c1356d50da12eb49b462050"
-  version = "v2.0.0-beta.4"
-
-[[projects]]
   name = "github.com/sirupsen/logrus"
   packages = ["."]
   revision = "f006c2ac4710855cf0f916dd6b77acf6b048dc6e"
@@ -111,37 +99,13 @@
 
 [[projects]]
   branch = "master"
-  name = "golang.org/x/net"
-  packages = ["context","http2","http2/hpack","idna","internal/timeseries","lex/httplex","trace"]
-  revision = "57efc9c3d9f91fb3277f8da1cff370539c4d3dc5"
-
-[[projects]]
-  branch = "master"
   name = "golang.org/x/sys"
   packages = ["unix","windows"]
   revision = "07c182904dbd53199946ba614a412c61d3c548f5"
 
-[[projects]]
-  branch = "master"
-  name = "golang.org/x/text"
-  packages = ["internal/gen","internal/triegen","internal/ucd","secure/bidirule","transform","unicode/bidi","unicode/cldr","unicode/norm","unicode/rangetable"]
-  revision = "ac87088df8ef557f1e32cd00ed0b6fbc3f7ddafb"
-
-[[projects]]
-  branch = "master"
-  name = "google.golang.org/genproto"
-  packages = ["googleapis/api/annotations","googleapis/rpc/status"]
-  revision = "ee236bd376b077c7a89f260c026c4735b195e459"
-
-[[projects]]
-  name = "google.golang.org/grpc"
-  packages = [".","codes","connectivity","credentials","grpclb/grpc_lb_v1","grpclog","internal","keepalive","metadata","naming","peer","stats","status","tap","transport"]
-  revision = "b3ddf786825de56a4178401b7e174ee332173b66"
-  version = "v1.5.2"
-
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "c3fc322344fab217e06e684134d155a6d7daf3abf84d5debb89240b3248505e5"
+  inputs-digest = "f8519478b8d204059ad4539a122a6de0a8504b674cfb9ddf7ebb1f27c515d472"
   solver-name = "gps-cdcl"
   solver-version = 1

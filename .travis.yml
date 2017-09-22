@@ -4,7 +4,12 @@ language: go
 
 go:
   - 1.9.x
-  - master
+  # - master
+
+env:
+  - PROM_IMAGE=prom/prometheus:v1.7.1        PROM_CONFIG=prom1
+  - PROM_IMAGE=prom/prometheus:v2.0.0-beta.5 PROM_CONFIG=prom2
+  - PROM_IMAGE=prom/prometheus:master        PROM_CONFIG=prom2
 
 services:
   - docker

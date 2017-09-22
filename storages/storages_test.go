@@ -23,17 +23,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/prompb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Percona-Lab/PromHouse/prompb"
 )
 
 func getData() *prompb.WriteRequest {
 	start := model.Now().Add(-6 * time.Second)
 
 	return &prompb.WriteRequest{
-		Timeseries: []*prompb.TimeSeries{
+		TimeSeries: []*prompb.TimeSeries{
 			{
 				Labels: []*prompb.Label{
 					{Name: "__name__", Value: "http_requests_total"},
@@ -41,11 +43,11 @@ func getData() *prompb.WriteRequest {
 					{Name: "handler", Value: "query"},
 				},
 				Samples: []*prompb.Sample{
-					{Value: 13, Timestamp: int64(start)},
-					{Value: 14, Timestamp: int64(start.Add(1 * time.Second))},
-					{Value: 14, Timestamp: int64(start.Add(2 * time.Second))},
-					{Value: 14, Timestamp: int64(start.Add(3 * time.Second))},
-					{Value: 15, Timestamp: int64(start.Add(4 * time.Second))},
+					{Value: 13, TimestampMs: int64(start)},
+					{Value: 14, TimestampMs: int64(start.Add(1 * time.Second))},
+					{Value: 14, TimestampMs: int64(start.Add(2 * time.Second))},
+					{Value: 14, TimestampMs: int64(start.Add(3 * time.Second))},
+					{Value: 15, TimestampMs: int64(start.Add(4 * time.Second))},
 				},
 			},
 			{
@@ -55,11 +57,11 @@ func getData() *prompb.WriteRequest {
 					{Name: "handler", Value: "query_range"},
 				},
 				Samples: []*prompb.Sample{
-					{Value: 9, Timestamp: int64(start)},
-					{Value: 9, Timestamp: int64(start.Add(1 * time.Second))},
-					{Value: 9, Timestamp: int64(start.Add(2 * time.Second))},
-					{Value: 11, Timestamp: int64(start.Add(3 * time.Second))},
-					{Value: 11, Timestamp: int64(start.Add(4 * time.Second))},
+					{Value: 9, TimestampMs: int64(start)},
+					{Value: 9, TimestampMs: int64(start.Add(1 * time.Second))},
+					{Value: 9, TimestampMs: int64(start.Add(2 * time.Second))},
+					{Value: 11, TimestampMs: int64(start.Add(3 * time.Second))},
+					{Value: 11, TimestampMs: int64(start.Add(4 * time.Second))},
 				},
 			},
 			{
@@ -69,11 +71,11 @@ func getData() *prompb.WriteRequest {
 					{Name: "handler", Value: "prometheus"},
 				},
 				Samples: []*prompb.Sample{
-					{Value: 591, Timestamp: int64(start)},
-					{Value: 592, Timestamp: int64(start.Add(1 * time.Second))},
-					{Value: 593, Timestamp: int64(start.Add(2 * time.Second))},
-					{Value: 594, Timestamp: int64(start.Add(3 * time.Second))},
-					{Value: 595, Timestamp: int64(start.Add(4 * time.Second))},
+					{Value: 591, TimestampMs: int64(start)},
+					{Value: 592, TimestampMs: int64(start.Add(1 * time.Second))},
+					{Value: 593, TimestampMs: int64(start.Add(2 * time.Second))},
+					{Value: 594, TimestampMs: int64(start.Add(3 * time.Second))},
+					{Value: 595, TimestampMs: int64(start.Add(4 * time.Second))},
 				},
 			},
 		},
@@ -118,7 +120,7 @@ func formatTS(ts *prompb.TimeSeries) string {
 	res := makeMetric(ts.Labels).String()
 	for _, s := range ts.Samples {
 		res += "\n\t" + model.SamplePair{
-			Timestamp: model.Time(s.Timestamp),
+			Timestamp: model.Time(s.TimestampMs),
 			Value:     model.SampleValue(s.Value),
 		}.String()
 	}
@@ -178,11 +180,11 @@ func TestStorages(t *testing.T) {
 						data, err := storage.Read(context.Background(), []Query{q})
 						assert.NoError(t, err)
 						require.Len(t, data.Results, 1)
-						require.Len(t, data.Results[0].Timeseries, 3)
-						sortTimeSeries(data.Results[0].Timeseries)
-						for i, actual := range data.Results[0].Timeseries {
+						require.Len(t, data.Results[0].TimeSeries, 3)
+						sortTimeSeries(data.Results[0].TimeSeries)
+						for i, actual := range data.Results[0].TimeSeries {
 							sortLabels(actual.Labels)
-							expected := storedData.Timeseries[i]
+							expected := storedData.TimeSeries[i]
 							assert.Equal(t, expected, actual, messageTS(expected, actual))
 						}
 					})
@@ -225,7 +227,7 @@ func TestStorages(t *testing.T) {
 						data, err := storage.Read(context.Background(), []Query{q})
 						assert.NoError(t, err)
 						require.Len(t, data.Results, 1)
-						require.Len(t, data.Results[0].Timeseries, 0)
+						require.Len(t, data.Results[0].TimeSeries, 0)
 					})
 				}
 			})
@@ -257,11 +259,11 @@ func TestStorages(t *testing.T) {
 						data, err := storage.Read(context.Background(), []Query{q})
 						assert.NoError(t, err)
 						require.Len(t, data.Results, 1)
-						require.Len(t, data.Results[0].Timeseries, 3)
-						sortTimeSeries(data.Results[0].Timeseries)
-						for i, actual := range data.Results[0].Timeseries {
+						require.Len(t, data.Results[0].TimeSeries, 3)
+						sortTimeSeries(data.Results[0].TimeSeries)
+						for i, actual := range data.Results[0].TimeSeries {
 							sortLabels(actual.Labels)
-							expected := storedData.Timeseries[i]
+							expected := storedData.TimeSeries[i]
 							assert.Equal(t, expected, actual, messageTS(expected, actual))
 						}
 					})
@@ -304,7 +306,7 @@ func TestStorages(t *testing.T) {
 						data, err := storage.Read(context.Background(), []Query{q})
 						assert.NoError(t, err)
 						require.Len(t, data.Results, 1)
-						require.Len(t, data.Results[0].Timeseries, 0)
+						require.Len(t, data.Results[0].TimeSeries, 0)
 					})
 				}
 			})
@@ -325,7 +327,7 @@ func TestStorages(t *testing.T) {
 						data, err := storage.Read(context.Background(), []Query{q})
 						assert.NoError(t, err)
 						require.Len(t, data.Results, 1)
-						require.Len(t, data.Results[0].Timeseries, 0)
+						require.Len(t, data.Results[0].TimeSeries, 0)
 					})
 				}
 			})
@@ -381,11 +383,11 @@ func TestStorages(t *testing.T) {
 						data, err := storage.Read(context.Background(), []Query{q})
 						assert.NoError(t, err)
 						require.Len(t, data.Results, 1)
-						require.Len(t, data.Results[0].Timeseries, 3)
-						sortTimeSeries(data.Results[0].Timeseries)
-						for i, actual := range data.Results[0].Timeseries {
+						require.Len(t, data.Results[0].TimeSeries, 3)
+						sortTimeSeries(data.Results[0].TimeSeries)
+						for i, actual := range data.Results[0].TimeSeries {
 							sortLabels(actual.Labels)
-							expected := storedData.Timeseries[i]
+							expected := storedData.TimeSeries[i]
 							assert.Equal(t, expected, actual, messageTS(expected, actual))
 						}
 					})
@@ -393,9 +395,9 @@ func TestStorages(t *testing.T) {
 			})
 
 			t.Run("WriteFunnyLabels", func(t *testing.T) {
-				s := []*prompb.Sample{{Value: 1, Timestamp: int64(start)}}
+				s := []*prompb.Sample{{Value: 1, TimestampMs: int64(start)}}
 				storedData := &prompb.WriteRequest{
-					Timeseries: []*prompb.TimeSeries{
+					TimeSeries: []*prompb.TimeSeries{
 						{Labels: []*prompb.Label{{"__name__", "funny_1"}, {"label", ""}}, Samples: s},
 						{Labels: []*prompb.Label{{"__name__", "funny_2"}, {"label", "'`\"\\"}}, Samples: s},
 						{Labels: []*prompb.Label{{"__name__", "funny_3"}, {"label", "''``\"\"\\\\"}}, Samples: s},
@@ -419,12 +421,42 @@ func TestStorages(t *testing.T) {
 				data, err := storage.Read(context.Background(), []Query{q})
 				assert.NoError(t, err)
 				require.Len(t, data.Results, 1)
-				require.Len(t, data.Results[0].Timeseries, len(storedData.Timeseries))
-				sortTimeSeries(data.Results[0].Timeseries)
-				for i, actual := range data.Results[0].Timeseries {
+				require.Len(t, data.Results[0].TimeSeries, len(storedData.TimeSeries))
+				sortTimeSeries(data.Results[0].TimeSeries)
+				for i, actual := range data.Results[0].TimeSeries {
 					sortLabels(actual.Labels)
-					expected := storedData.Timeseries[i]
+					expected := storedData.TimeSeries[i]
 					assert.Equal(t, expected, actual, messageTS(expected, actual))
+				}
+			})
+
+			t.Run("Metrics", func(t *testing.T) {
+				descCh := make(chan *prometheus.Desc)
+				go func() {
+					storage.Describe(descCh)
+					close(descCh)
+				}()
+
+				var descs []*prometheus.Desc
+				for d := range descCh {
+					descs = append(descs, d)
+				}
+
+				metricsCh := make(chan prometheus.Metric)
+				go func() {
+					storage.Collect(metricsCh)
+					close(metricsCh)
+				}()
+
+				for m := range metricsCh {
+					var found bool
+					for _, d := range descs {
+						if m.Desc() == d {
+							found = true
+							break
+						}
+					}
+					assert.True(t, found)
 				}
 			})
 		})

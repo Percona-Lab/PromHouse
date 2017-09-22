@@ -1,3 +1,4 @@
-[[constraint]]
-  name = "github.com/prometheus/prometheus"
-  version = "=v2.0.0-beta.4"
+# tools
+required = [
+  "github.com/golang/protobuf/protoc-gen-go"
+]

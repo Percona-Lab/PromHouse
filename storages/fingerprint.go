@@ -35,7 +35,7 @@
 package storages
 
 import (
-	"github.com/prometheus/prometheus/prompb"
+	"github.com/Percona-Lab/PromHouse/prompb"
 )
 
 const (

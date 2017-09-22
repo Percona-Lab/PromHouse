@@ -34,7 +34,8 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/prompb"
+
+	"github.com/Percona-Lab/PromHouse/prompb"
 )
 
 type client struct {
@@ -175,7 +176,7 @@ func main() {
 				}
 
 				if time.Now().After(nextReport) {
-					log.Printf("writer %d: %d timeseries in %s", id, len(req.Timeseries), time.Now().Sub(start))
+					log.Printf("writer %d: %d timeseries in %s", id, len(req.TimeSeries), time.Now().Sub(start))
 					nextReport = time.Now().Add(5 * time.Second)
 				}
 			}
@@ -199,7 +200,7 @@ func main() {
 
 		var samples int
 		req := &prompb.WriteRequest{
-			Timeseries: make([]*prompb.TimeSeries, 0, len(v)**instancesF),
+			TimeSeries: make([]*prompb.TimeSeries, 0, len(v)**instancesF),
 		}
 		for _, s := range v {
 			ts := &prompb.TimeSeries{
@@ -218,8 +219,8 @@ func main() {
 
 			ts.Samples = []*prompb.Sample{
 				{
-					Value:     float64(s.Value),
-					Timestamp: int64(model.TimeFromUnixNano(timestamp.UnixNano())),
+					Value:       float64(s.Value),
+					TimestampMs: int64(model.TimeFromUnixNano(timestamp.UnixNano())),
 				},
 			}
 			samples++
@@ -230,7 +231,7 @@ func main() {
 					Name:  "instance",
 					Value: fmt.Sprintf(instanceFormat, i),
 				}
-				req.Timeseries = append(req.Timeseries, ts)
+				req.TimeSeries = append(req.TimeSeries, ts)
 			}
 		}
 
@@ -239,7 +240,7 @@ func main() {
 		if time.Now().After(nextReport) {
 			samples *= *instancesF
 			log.Printf("%d/%d %.1f%% %s: %d timeseries, %d samples",
-				step, steps, float64(step)/float64(steps)*100, timestamp, len(req.Timeseries), samples)
+				step, steps, float64(step)/float64(steps)*100, timestamp, len(req.TimeSeries), samples)
 			nextReport = time.Now().Add(5 * time.Second)
 		}
 

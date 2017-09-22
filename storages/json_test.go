@@ -21,9 +21,10 @@ import (
 	"testing"
 
 	"github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/prompb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Percona-Lab/PromHouse/prompb"
 )
 
 func TestMarshalMetricsAndLabels(t *testing.T) {

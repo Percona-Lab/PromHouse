@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -426,6 +427,36 @@ func TestStorages(t *testing.T) {
 					sortLabels(actual.Labels)
 					expected := storedData.TimeSeries[i]
 					assert.Equal(t, expected, actual, messageTS(expected, actual))
+				}
+			})
+
+			t.Run("Metrics", func(t *testing.T) {
+				descCh := make(chan *prometheus.Desc)
+				go func() {
+					storage.Describe(descCh)
+					close(descCh)
+				}()
+
+				var descs []*prometheus.Desc
+				for d := range descCh {
+					descs = append(descs, d)
+				}
+
+				metricsCh := make(chan prometheus.Metric)
+				go func() {
+					storage.Collect(metricsCh)
+					close(metricsCh)
+				}()
+
+				for m := range metricsCh {
+					var found bool
+					for _, d := range descs {
+						if m.Desc() == d {
+							found = true
+							break
+						}
+					}
+					assert.True(t, found)
 				}
 			})
 		})

@@ -29,22 +29,22 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
-	prom2 "github.com/Percona-Lab/PromHouse/prompb/prom2"
+	"github.com/Percona-Lab/PromHouse/prompb"
 	"github.com/Percona-Lab/PromHouse/storages"
 )
 
-func getWriteRequest() *prom2.WriteRequest {
+func getWriteRequest() *prompb.WriteRequest {
 	start := model.Now().Add(-6 * time.Second)
 
-	return &prom2.WriteRequest{
-		Timeseries: []*prom2.TimeSeries{
+	return &prompb.WriteRequest{
+		Timeseries: []*prompb.TimeSeries{
 			{
-				Labels: []*prom2.Label{
+				Labels: []*prompb.Label{
 					{Name: "__name__", Value: "http_requests_total"},
 					{Name: "code", Value: "200"},
 					{Name: "handler", Value: "query"},
 				},
-				Samples: []*prom2.Sample{
+				Samples: []*prompb.Sample{
 					{Value: 13, Timestamp: int64(start)},
 					{Value: 14, Timestamp: int64(start.Add(1 * time.Second))},
 					{Value: 14, Timestamp: int64(start.Add(2 * time.Second))},
@@ -53,12 +53,12 @@ func getWriteRequest() *prom2.WriteRequest {
 				},
 			},
 			{
-				Labels: []*prom2.Label{
+				Labels: []*prompb.Label{
 					{Name: "__name__", Value: "http_requests_total"},
 					{Name: "code", Value: "400"},
 					{Name: "handler", Value: "query_range"},
 				},
-				Samples: []*prom2.Sample{
+				Samples: []*prompb.Sample{
 					{Value: 9, Timestamp: int64(start)},
 					{Value: 9, Timestamp: int64(start.Add(1 * time.Second))},
 					{Value: 9, Timestamp: int64(start.Add(2 * time.Second))},
@@ -67,12 +67,12 @@ func getWriteRequest() *prom2.WriteRequest {
 				},
 			},
 			{
-				Labels: []*prom2.Label{
+				Labels: []*prompb.Label{
 					{Name: "__name__", Value: "http_requests_total"},
 					{Name: "code", Value: "200"},
 					{Name: "handler", Value: "prometheus"},
 				},
-				Samples: []*prom2.Sample{
+				Samples: []*prompb.Sample{
 					{Value: 591, Timestamp: int64(start)},
 					{Value: 592, Timestamp: int64(start.Add(1 * time.Second))},
 					{Value: 593, Timestamp: int64(start.Add(2 * time.Second))},
@@ -97,7 +97,7 @@ func TestWrite(t *testing.T) {
 	r := bytes.NewReader(snappy.Encode(nil, data))
 	req, err := http.NewRequest("", "", r)
 	require.NoError(t, err)
-	require.NoError(t, h.Write2(nil, req))
+	require.NoError(t, h.Write(nil, req))
 }
 
 func BenchmarkWrite(b *testing.B) {
@@ -117,7 +117,7 @@ func BenchmarkWrite(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		r.Seek(0, io.SeekStart)
-		err = h.Write2(nil, req)
+		err = h.Write(nil, req)
 	}
 	b.StopTimer()
 

@@ -23,20 +23,20 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	prom2 "github.com/Percona-Lab/PromHouse/prompb/prom2"
+	"github.com/Percona-Lab/PromHouse/prompb"
 )
 
 // Memory is a functional dummy storage for testing.
 type Memory struct {
-	metrics map[uint64][]*prom2.Label
-	samples map[uint64][]*prom2.Sample
+	metrics map[uint64][]*prompb.Label
+	samples map[uint64][]*prompb.Sample
 	rw      sync.RWMutex
 }
 
 func NewMemory() *Memory {
 	return &Memory{
-		metrics: make(map[uint64][]*prom2.Label, 8192),
-		samples: make(map[uint64][]*prom2.Sample, 8192),
+		metrics: make(map[uint64][]*prompb.Label, 8192),
+		samples: make(map[uint64][]*prompb.Sample, 8192),
 	}
 }
 
@@ -46,7 +46,7 @@ func (m *Memory) Describe(c chan<- *prometheus.Desc) {
 func (m *Memory) Collect(c chan<- prometheus.Metric) {
 }
 
-func (m *Memory) Read(ctx context.Context, queries []Query) (*prom2.ReadResponse, error) {
+func (m *Memory) Read(ctx context.Context, queries []Query) (*prompb.ReadResponse, error) {
 	m.rw.RLock()
 	defer m.rw.RUnlock()
 
@@ -54,14 +54,14 @@ func (m *Memory) Read(ctx context.Context, queries []Query) (*prom2.ReadResponse
 		return nil, ctx.Err()
 	}
 
-	res := &prom2.ReadResponse{
-		Results: make([]*prom2.QueryResult, len(queries)),
+	res := &prompb.ReadResponse{
+		Results: make([]*prompb.QueryResult, len(queries)),
 	}
 	for i, q := range queries {
-		res.Results[i] = new(prom2.QueryResult)
+		res.Results[i] = new(prompb.QueryResult)
 		for f, metric := range m.metrics {
 			if q.Matchers.MatchLabels(metric) {
-				var ts *prom2.TimeSeries
+				var ts *prompb.TimeSeries
 				start, end := int64(q.Start), int64(q.End)
 				for _, sp := range m.samples[f] {
 					if sp.Timestamp < start {
@@ -71,7 +71,7 @@ func (m *Memory) Read(ctx context.Context, queries []Query) (*prom2.ReadResponse
 						break
 					}
 					if ts == nil {
-						ts = &prom2.TimeSeries{
+						ts = &prompb.TimeSeries{
 							Labels: metric,
 						}
 					}
@@ -87,7 +87,7 @@ func (m *Memory) Read(ctx context.Context, queries []Query) (*prom2.ReadResponse
 	return res, nil
 }
 
-func (m *Memory) Write(ctx context.Context, data *prom2.WriteRequest) error {
+func (m *Memory) Write(ctx context.Context, data *prompb.WriteRequest) error {
 	m.rw.Lock()
 	defer m.rw.Unlock()
 

@@ -35,7 +35,7 @@
 package storages
 
 import (
-	prom2 "github.com/Percona-Lab/PromHouse/prompb/prom2"
+	"github.com/Percona-Lab/PromHouse/prompb"
 )
 
 const (
@@ -62,7 +62,7 @@ func hashAddByte(h uint64, b byte) uint64 {
 
 // fingerprint calculates a fingerprint of SORTED BY NAME labels.
 // It is adopted from labelSetToFingerprint, but avoids type conversions and memory allocations.
-func fingerprint(labels []*prom2.Label) uint64 {
+func fingerprint(labels []*prompb.Label) uint64 {
 	if len(labels) == 0 {
 		return offset64
 	}

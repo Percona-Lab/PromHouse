@@ -22,7 +22,7 @@ scrape_configs:
       - targets: ['127.0.0.1:9100']
 
 remote_read:
-  - url: http://127.0.0.1:7781/prom2/read
+  - url: http://127.0.0.1:7781/read
 
 remote_write:
-  - url: http://127.0.0.1:7781/prom2/write
+  - url: http://127.0.0.1:7781/write

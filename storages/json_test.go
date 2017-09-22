@@ -24,33 +24,33 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	prom2 "github.com/Percona-Lab/PromHouse/prompb/prom2"
+	"github.com/Percona-Lab/PromHouse/prompb"
 )
 
 func TestMarshalMetricsAndLabels(t *testing.T) {
-	for _, labels := range [][]*prom2.Label{
+	for _, labels := range [][]*prompb.Label{
 		{
-			&prom2.Label{Name: "__name__", Value: "normal"},
-			&prom2.Label{Name: "instance", Value: "foo"},
-			&prom2.Label{Name: "job", Value: "bar"},
+			&prompb.Label{Name: "__name__", Value: "normal"},
+			&prompb.Label{Name: "instance", Value: "foo"},
+			&prompb.Label{Name: "job", Value: "bar"},
 		}, {
-			&prom2.Label{Name: "__name__", Value: "funny_1"},
-			&prom2.Label{Name: "label", Value: ""},
+			&prompb.Label{Name: "__name__", Value: "funny_1"},
+			&prompb.Label{Name: "label", Value: ""},
 		}, {
-			&prom2.Label{Name: "__name__", Value: "funny_2"},
-			&prom2.Label{Name: "label", Value: "'`\"\\"},
+			&prompb.Label{Name: "__name__", Value: "funny_2"},
+			&prompb.Label{Name: "label", Value: "'`\"\\"},
 		}, {
-			&prom2.Label{Name: "__name__", Value: "funny_3"},
-			&prom2.Label{Name: "label", Value: "''``\"\"\\\\"},
+			&prompb.Label{Name: "__name__", Value: "funny_3"},
+			&prompb.Label{Name: "label", Value: "''``\"\"\\\\"},
 		}, {
-			&prom2.Label{Name: "__name__", Value: "funny_4"},
-			&prom2.Label{Name: "label", Value: "'''```\"\"\"\\\\\\"},
+			&prompb.Label{Name: "__name__", Value: "funny_4"},
+			&prompb.Label{Name: "label", Value: "'''```\"\"\"\\\\\\"},
 		}, {
-			&prom2.Label{Name: "__name__", Value: "funny_5"},
-			&prom2.Label{Name: "label", Value: `\ \\ \\\\ \\\\`},
+			&prompb.Label{Name: "__name__", Value: "funny_5"},
+			&prompb.Label{Name: "label", Value: `\ \\ \\\\ \\\\`},
 		}, {
-			&prom2.Label{Name: "__name__", Value: "funny_6"},
-			&prom2.Label{Name: "label", Value: "🆗"},
+			&prompb.Label{Name: "__name__", Value: "funny_6"},
+			&prompb.Label{Name: "label", Value: "🆗"},
 		},
 	} {
 		b1 := marshalLabels(labels, nil)

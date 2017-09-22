@@ -30,7 +30,7 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/sirupsen/logrus"
 
-	prom2 "github.com/Percona-Lab/PromHouse/prompb/prom2"
+	prompb "github.com/Percona-Lab/PromHouse/prompb"
 )
 
 const (
@@ -46,7 +46,7 @@ type ClickHouse struct {
 	l        *logrus.Entry
 	database string
 
-	metrics   map[uint64][]*prom2.Label
+	metrics   map[uint64][]*prompb.Label
 	metricsRW sync.RWMutex
 
 	mMetricsCurrent             prometheus.Gauge
@@ -111,7 +111,7 @@ func NewClickHouse(dsn string, database string, init bool) (*ClickHouse, error) 
 		l:        l,
 		database: database,
 
-		metrics: make(map[uint64][]*prom2.Label, 8192),
+		metrics: make(map[uint64][]*prompb.Label, 8192),
 
 		mMetricsCurrent: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: namespace,
@@ -192,7 +192,7 @@ func (ch *ClickHouse) runMetricsReloader(ctx context.Context) {
 	q := fmt.Sprintf(`SELECT DISTINCT fingerprint, labels FROM %s.metrics`, ch.database)
 	for {
 		ch.metricsRW.RLock()
-		metrics := make(map[uint64][]*prom2.Label, len(ch.metrics))
+		metrics := make(map[uint64][]*prompb.Label, len(ch.metrics))
 		ch.metricsRW.RUnlock()
 
 		err := func() error {
@@ -304,7 +304,7 @@ func (ch *ClickHouse) Collect(c chan<- prometheus.Metric) {
 	ch.mWrittenSamples.Collect(c)
 }
 
-func (ch *ClickHouse) Read(ctx context.Context, queries []Query) (res *prom2.ReadResponse, err error) {
+func (ch *ClickHouse) Read(ctx context.Context, queries []Query) (res *prompb.ReadResponse, err error) {
 	// track time and response status
 	start := time.Now()
 	defer func() {
@@ -320,11 +320,11 @@ func (ch *ClickHouse) Read(ctx context.Context, queries []Query) (res *prom2.Rea
 		ch.mReadErrors.WithLabelValues(t).Inc()
 	}()
 
-	res = &prom2.ReadResponse{
-		Results: make([]*prom2.QueryResult, len(queries)),
+	res = &prompb.ReadResponse{
+		Results: make([]*prompb.QueryResult, len(queries)),
 	}
 	for i, q := range queries {
-		res.Results[i] = new(prom2.QueryResult)
+		res.Results[i] = new(prompb.QueryResult)
 
 		// find matching metrics
 		fingerprints := make(map[uint64]struct{}, 64)
@@ -361,7 +361,7 @@ func (ch *ClickHouse) Read(ctx context.Context, queries []Query) (res *prom2.Rea
 			}
 			defer rows.Close()
 
-			var ts *prom2.TimeSeries
+			var ts *prompb.TimeSeries
 			var fingerprint, prevFingerprint uint64
 			var timestamp int64
 			var value float64
@@ -378,11 +378,11 @@ func (ch *ClickHouse) Read(ctx context.Context, queries []Query) (res *prom2.Rea
 					ch.metricsRW.RLock()
 					labels := ch.metrics[fingerprint]
 					ch.metricsRW.RUnlock()
-					ts = &prom2.TimeSeries{
+					ts = &prompb.TimeSeries{
 						Labels: labels,
 					}
 				}
-				ts.Samples = append(ts.Samples, &prom2.Sample{
+				ts.Samples = append(ts.Samples, &prompb.Sample{
 					Timestamp: timestamp,
 					Value:     value,
 				})
@@ -416,7 +416,7 @@ func inTransaction(ctx context.Context, db *sql.DB, f func(*sql.Tx) error) (err 
 	return
 }
 
-func (ch *ClickHouse) Write(ctx context.Context, data *prom2.WriteRequest) (err error) {
+func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err error) {
 	// track time and response status
 	start := time.Now()
 	defer func() {
@@ -434,7 +434,7 @@ func (ch *ClickHouse) Write(ctx context.Context, data *prom2.WriteRequest) (err 
 
 	// calculate fingerprints, map them to metrics
 	fingerprints := make([]uint64, len(data.Timeseries))
-	metrics := make(map[uint64][]*prom2.Label, len(data.Timeseries))
+	metrics := make(map[uint64][]*prompb.Label, len(data.Timeseries))
 	for i, ts := range data.Timeseries {
 		sortLabels(ts.Labels)
 		f := fingerprint(ts.Labels)

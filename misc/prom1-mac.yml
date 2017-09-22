@@ -22,7 +22,8 @@ scrape_configs:
       - targets: ['docker.for.mac.localhost:9100']
 
 remote_read:
-  - url: http://docker.for.mac.localhost:7781/prom1/read
+  - url: http://docker.for.mac.localhost:7781/read
 
 remote_write:
-  - url: http://docker.for.mac.localhost:7781/prom1/write
+  - url: http://docker.for.mac.localhost:7781/write
+    # TODO add queue_config when 1.8 is released

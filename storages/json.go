@@ -19,13 +19,13 @@ package storages
 import (
 	"encoding/json"
 
-	prom2 "github.com/Percona-Lab/PromHouse/prompb/prom2"
+	"github.com/Percona-Lab/PromHouse/prompb"
 )
 
 // marshalLabels marshals Prometheus labels into JSON, appending it to b.
 // It preserves an order. It is also significantly faster then json.Marshal.
 // It is compatible with ClickHouse JSON functions: https://clickhouse.yandex/docs/en/functions/json_functions.html
-func marshalLabels(labels []*prom2.Label, b []byte) []byte {
+func marshalLabels(labels []*prompb.Label, b []byte) []byte {
 	b = append(b, '{')
 	for _, l := range labels {
 		// add label name which can't contain runes that should be escaped
@@ -60,14 +60,14 @@ func marshalLabels(labels []*prom2.Label, b []byte) []byte {
 // unmarshalLabels unmarshals JSON into Prometheus labels.
 // It does not preserves an order.
 // TODO optimize?
-func unmarshalLabels(b []byte) ([]*prom2.Label, error) {
+func unmarshalLabels(b []byte) ([]*prompb.Label, error) {
 	m := make(map[string]string)
 	if err := json.Unmarshal(b, &m); err != nil {
 		return nil, err
 	}
-	res := make([]*prom2.Label, 0, len(m))
+	res := make([]*prompb.Label, 0, len(m))
 	for n, v := range m {
-		res = append(res, &prom2.Label{
+		res = append(res, &prompb.Label{
 			Name:  n,
 			Value: v,
 		})

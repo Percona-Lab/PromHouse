@@ -17,16 +17,47 @@
 package handlers
 
 import (
+	"io/ioutil"
 	"net/http"
+	"sync"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/prometheus/common/model"
+	"github.com/sirupsen/logrus"
 
-	prom2 "github.com/Percona-Lab/PromHouse/prompb/prom2"
+	"github.com/Percona-Lab/PromHouse/prompb"
 	"github.com/Percona-Lab/PromHouse/storages"
 )
 
-func (p *PromAPI) convertRead2Request(request *prom2.ReadRequest) []storages.Query {
+type PromAPI struct {
+	Storage storages.Storage
+	Logger  *logrus.Entry
+}
+
+var snappyPool = sync.Pool{
+	New: func() interface{} {
+		return make([]byte, 1024)
+	},
+}
+
+func readPB(req *http.Request, pb proto.Message) error {
+	compressed, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		return err
+	}
+
+	dst := snappyPool.Get().([]byte)
+	dst = dst[:cap(dst)]
+	b, err := snappy.Decode(dst, compressed)
+	if err == nil {
+		err = proto.Unmarshal(b, pb)
+	}
+	snappyPool.Put(b)
+	return err
+}
+
+func (p *PromAPI) convertReadRequest(request *prompb.ReadRequest) []storages.Query {
 	queries := make([]storages.Query, len(request.Queries))
 	for i, rq := range request.Queries {
 		q := storages.Query{
@@ -38,13 +69,13 @@ func (p *PromAPI) convertRead2Request(request *prom2.ReadRequest) []storages.Que
 		for j, m := range rq.Matchers {
 			var t storages.MatchType
 			switch m.Type {
-			case prom2.LabelMatcher_EQ:
+			case prompb.LabelMatcher_EQ:
 				t = storages.MatchEqual
-			case prom2.LabelMatcher_NEQ:
+			case prompb.LabelMatcher_NEQ:
 				t = storages.MatchNotEqual
-			case prom2.LabelMatcher_RE:
+			case prompb.LabelMatcher_RE:
 				t = storages.MatchRegexp
-			case prom2.LabelMatcher_NRE:
+			case prompb.LabelMatcher_NRE:
 				t = storages.MatchNotRegexp
 			default:
 				p.Logger.Panicf("expectation failed: unexpected matcher %d", m.Type)
@@ -63,14 +94,14 @@ func (p *PromAPI) convertRead2Request(request *prom2.ReadRequest) []storages.Que
 	return queries
 }
 
-func (p *PromAPI) Read2(rw http.ResponseWriter, req *http.Request) error {
-	var request prom2.ReadRequest
+func (p *PromAPI) Read(rw http.ResponseWriter, req *http.Request) error {
+	var request prompb.ReadRequest
 	if err := readPB(req, &request); err != nil {
 		return err
 	}
 
 	// read from storage
-	queries := p.convertRead2Request(&request)
+	queries := p.convertReadRequest(&request)
 	p.Logger.Infof("Queries: %s", queries)
 	response, err := p.Storage.Read(req.Context(), queries)
 	if err != nil {
@@ -80,7 +111,7 @@ func (p *PromAPI) Read2(rw http.ResponseWriter, req *http.Request) error {
 
 	// marshal, encode and write response
 	// TODO use MarshalTo with sync.Pool?
-	b, err := response.Marshal()
+	b, err := proto.Marshal(response)
 	if err != nil {
 		return err
 	}
@@ -94,8 +125,8 @@ func (p *PromAPI) Read2(rw http.ResponseWriter, req *http.Request) error {
 	return err
 }
 
-func (p *PromAPI) Write2(rw http.ResponseWriter, req *http.Request) error {
-	var request prom2.WriteRequest
+func (p *PromAPI) Write(rw http.ResponseWriter, req *http.Request) error {
+	var request prompb.WriteRequest
 	if err := readPB(req, &request); err != nil {
 		return err
 	}

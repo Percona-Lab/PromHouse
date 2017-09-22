@@ -78,7 +78,7 @@ func (m *Memory) Read(ctx context.Context, queries []Query) (*prompb.ReadRespons
 					ts.Samples = append(ts.Samples, sp)
 				}
 				if ts != nil {
-					res.Results[i].Timeseries = append(res.Results[i].Timeseries, ts)
+					res.Results[i].TimeSeries = append(res.Results[i].TimeSeries, ts)
 				}
 			}
 		}
@@ -95,7 +95,7 @@ func (m *Memory) Write(ctx context.Context, data *prompb.WriteRequest) error {
 		return ctx.Err()
 	}
 
-	for _, ts := range data.Timeseries {
+	for _, ts := range data.TimeSeries {
 		sortLabels(ts.Labels)
 		f := fingerprint(ts.Labels)
 		m.metrics[f] = ts.Labels

@@ -30,7 +30,7 @@ func TestFingerprints(t *testing.T) {
 	actual := fingerprint(nil)
 	assert.Equal(t, expected, actual)
 
-	for _, ts := range getData().Timeseries {
+	for _, ts := range getData().TimeSeries {
 		expected = uint64(makeMetric(ts.Labels).Fingerprint())
 		actual = fingerprint(ts.Labels)
 		assert.Equal(t, expected, actual)

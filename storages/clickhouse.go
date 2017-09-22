@@ -372,7 +372,7 @@ func (ch *ClickHouse) Read(ctx context.Context, queries []Query) (res *prompb.Re
 				if fingerprint != prevFingerprint {
 					prevFingerprint = fingerprint
 					if ts != nil {
-						res.Results[i].Timeseries = append(res.Results[i].Timeseries, ts)
+						res.Results[i].TimeSeries = append(res.Results[i].TimeSeries, ts)
 					}
 
 					ch.metricsRW.RLock()
@@ -388,7 +388,7 @@ func (ch *ClickHouse) Read(ctx context.Context, queries []Query) (res *prompb.Re
 				})
 			}
 			if ts != nil {
-				res.Results[i].Timeseries = append(res.Results[i].Timeseries, ts)
+				res.Results[i].TimeSeries = append(res.Results[i].TimeSeries, ts)
 			}
 			return errors.WithStack(rows.Err())
 		}()
@@ -433,9 +433,9 @@ func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 	}()
 
 	// calculate fingerprints, map them to metrics
-	fingerprints := make([]uint64, len(data.Timeseries))
-	metrics := make(map[uint64][]*prompb.Label, len(data.Timeseries))
-	for i, ts := range data.Timeseries {
+	fingerprints := make([]uint64, len(data.TimeSeries))
+	metrics := make(map[uint64][]*prompb.Label, len(data.TimeSeries))
+	for i, ts := range data.TimeSeries {
 		sortLabels(ts.Labels)
 		f := fingerprint(ts.Labels)
 		fingerprints[i] = f
@@ -494,7 +494,7 @@ func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 		}
 
 		args := make([]interface{}, 4)
-		for i, ts := range data.Timeseries {
+		for i, ts := range data.TimeSeries {
 			args[1] = fingerprints[i]
 
 			for _, s := range ts.Samples {

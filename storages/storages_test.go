@@ -34,7 +34,7 @@ func getData() *prompb.WriteRequest {
 	start := model.Now().Add(-6 * time.Second)
 
 	return &prompb.WriteRequest{
-		Timeseries: []*prompb.TimeSeries{
+		TimeSeries: []*prompb.TimeSeries{
 			{
 				Labels: []*prompb.Label{
 					{Name: "__name__", Value: "http_requests_total"},
@@ -179,11 +179,11 @@ func TestStorages(t *testing.T) {
 						data, err := storage.Read(context.Background(), []Query{q})
 						assert.NoError(t, err)
 						require.Len(t, data.Results, 1)
-						require.Len(t, data.Results[0].Timeseries, 3)
-						sortTimeSeries(data.Results[0].Timeseries)
-						for i, actual := range data.Results[0].Timeseries {
+						require.Len(t, data.Results[0].TimeSeries, 3)
+						sortTimeSeries(data.Results[0].TimeSeries)
+						for i, actual := range data.Results[0].TimeSeries {
 							sortLabels(actual.Labels)
-							expected := storedData.Timeseries[i]
+							expected := storedData.TimeSeries[i]
 							assert.Equal(t, expected, actual, messageTS(expected, actual))
 						}
 					})
@@ -226,7 +226,7 @@ func TestStorages(t *testing.T) {
 						data, err := storage.Read(context.Background(), []Query{q})
 						assert.NoError(t, err)
 						require.Len(t, data.Results, 1)
-						require.Len(t, data.Results[0].Timeseries, 0)
+						require.Len(t, data.Results[0].TimeSeries, 0)
 					})
 				}
 			})
@@ -258,11 +258,11 @@ func TestStorages(t *testing.T) {
 						data, err := storage.Read(context.Background(), []Query{q})
 						assert.NoError(t, err)
 						require.Len(t, data.Results, 1)
-						require.Len(t, data.Results[0].Timeseries, 3)
-						sortTimeSeries(data.Results[0].Timeseries)
-						for i, actual := range data.Results[0].Timeseries {
+						require.Len(t, data.Results[0].TimeSeries, 3)
+						sortTimeSeries(data.Results[0].TimeSeries)
+						for i, actual := range data.Results[0].TimeSeries {
 							sortLabels(actual.Labels)
-							expected := storedData.Timeseries[i]
+							expected := storedData.TimeSeries[i]
 							assert.Equal(t, expected, actual, messageTS(expected, actual))
 						}
 					})
@@ -305,7 +305,7 @@ func TestStorages(t *testing.T) {
 						data, err := storage.Read(context.Background(), []Query{q})
 						assert.NoError(t, err)
 						require.Len(t, data.Results, 1)
-						require.Len(t, data.Results[0].Timeseries, 0)
+						require.Len(t, data.Results[0].TimeSeries, 0)
 					})
 				}
 			})
@@ -326,7 +326,7 @@ func TestStorages(t *testing.T) {
 						data, err := storage.Read(context.Background(), []Query{q})
 						assert.NoError(t, err)
 						require.Len(t, data.Results, 1)
-						require.Len(t, data.Results[0].Timeseries, 0)
+						require.Len(t, data.Results[0].TimeSeries, 0)
 					})
 				}
 			})
@@ -382,11 +382,11 @@ func TestStorages(t *testing.T) {
 						data, err := storage.Read(context.Background(), []Query{q})
 						assert.NoError(t, err)
 						require.Len(t, data.Results, 1)
-						require.Len(t, data.Results[0].Timeseries, 3)
-						sortTimeSeries(data.Results[0].Timeseries)
-						for i, actual := range data.Results[0].Timeseries {
+						require.Len(t, data.Results[0].TimeSeries, 3)
+						sortTimeSeries(data.Results[0].TimeSeries)
+						for i, actual := range data.Results[0].TimeSeries {
 							sortLabels(actual.Labels)
-							expected := storedData.Timeseries[i]
+							expected := storedData.TimeSeries[i]
 							assert.Equal(t, expected, actual, messageTS(expected, actual))
 						}
 					})
@@ -396,7 +396,7 @@ func TestStorages(t *testing.T) {
 			t.Run("WriteFunnyLabels", func(t *testing.T) {
 				s := []*prompb.Sample{{Value: 1, TimestampMs: int64(start)}}
 				storedData := &prompb.WriteRequest{
-					Timeseries: []*prompb.TimeSeries{
+					TimeSeries: []*prompb.TimeSeries{
 						{Labels: []*prompb.Label{{"__name__", "funny_1"}, {"label", ""}}, Samples: s},
 						{Labels: []*prompb.Label{{"__name__", "funny_2"}, {"label", "'`\"\\"}}, Samples: s},
 						{Labels: []*prompb.Label{{"__name__", "funny_3"}, {"label", "''``\"\"\\\\"}}, Samples: s},
@@ -420,11 +420,11 @@ func TestStorages(t *testing.T) {
 				data, err := storage.Read(context.Background(), []Query{q})
 				assert.NoError(t, err)
 				require.Len(t, data.Results, 1)
-				require.Len(t, data.Results[0].Timeseries, len(storedData.Timeseries))
-				sortTimeSeries(data.Results[0].Timeseries)
-				for i, actual := range data.Results[0].Timeseries {
+				require.Len(t, data.Results[0].TimeSeries, len(storedData.TimeSeries))
+				sortTimeSeries(data.Results[0].TimeSeries)
+				for i, actual := range data.Results[0].TimeSeries {
 					sortLabels(actual.Labels)
-					expected := storedData.Timeseries[i]
+					expected := storedData.TimeSeries[i]
 					assert.Equal(t, expected, actual, messageTS(expected, actual))
 				}
 			})

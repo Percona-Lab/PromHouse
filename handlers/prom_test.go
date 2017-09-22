@@ -37,7 +37,7 @@ func getWriteRequest() *prompb.WriteRequest {
 	start := model.Now().Add(-6 * time.Second)
 
 	return &prompb.WriteRequest{
-		Timeseries: []*prompb.TimeSeries{
+		TimeSeries: []*prompb.TimeSeries{
 			{
 				Labels: []*prompb.Label{
 					{Name: "__name__", Value: "http_requests_total"},

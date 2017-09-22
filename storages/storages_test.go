@@ -171,7 +171,6 @@ func TestStorages(t *testing.T) {
 								Value: "http_requests_total",
 							}},
 						},
-
 						{
 							Start: start,
 							End:   end,
@@ -207,9 +206,7 @@ func TestStorages(t *testing.T) {
 								Value: "no_such_metric",
 							}},
 						},
-
-						// TODO should it return 3 series with 0 values, or 0 values?
-						{
+						{ // TODO should it return 3 series with 0 values, or 0 values?
 							Start: 0,
 							End:   0,
 							Matchers: []Matcher{{
@@ -218,7 +215,6 @@ func TestStorages(t *testing.T) {
 								Value: "http_requests_total",
 							}},
 						},
-
 						{
 							Start: start,
 							End:   end,
@@ -250,7 +246,6 @@ func TestStorages(t *testing.T) {
 								Value: "http_requests_.+",
 							}},
 						},
-
 						{
 							Start: start,
 							End:   end,
@@ -286,9 +281,7 @@ func TestStorages(t *testing.T) {
 								Value: "_requests_",
 							}},
 						},
-
-						// TODO should it return 3 series with 0 values, or 0 values?
-						{
+						{ // TODO should it return 3 series with 0 values, or 0 values?
 							Start: 0,
 							End:   0,
 							Matchers: []Matcher{{
@@ -297,7 +290,6 @@ func TestStorages(t *testing.T) {
 								Value: "http_requests_.+",
 							}},
 						},
-
 						{
 							Start: start,
 							End:   end,
@@ -353,7 +345,6 @@ func TestStorages(t *testing.T) {
 								Value: "no_such_value",
 							}},
 						},
-
 						{
 							Start: start,
 							End:   end,

@@ -137,258 +137,288 @@ func TestStorages(t *testing.T) {
 	// defer logrus.SetLevel(level)
 
 	for storageName, newStorage := range map[string]func() (Storage, error){
-		"Memory":     func() (Storage, error) { return NewMemory(), nil },
-		"ClickHouse": func() (Storage, error) { return NewClickHouse("tcp://127.0.0.1:9000", "prometheus_test", true) },
+		"Memory": func() (Storage, error) {
+			return NewMemory(), nil
+		},
+		"ClickHouse": func() (Storage, error) {
+			return NewClickHouse("tcp://127.0.0.1:9000", "prometheus_test", true)
+		},
 	} {
 		t.Run(storageName, func(t *testing.T) {
 			// We expect that from Prometheus (from https://prometheus.io/docs/querying/basics/):
 			// * Label matchers that match empty label values also select all time series that do not have the specific label set at all.
 			// * At least one matcher should have non-empty label value.
 
-			storedData := getData()
 			storage, err := newStorage()
 			require.NoError(t, err)
-			require.NoError(t, storage.Write(context.Background(), storedData))
 
 			start := model.Now().Add(-time.Minute)
 			end := model.Now()
 
-			t.Run("ReadByName", func(t *testing.T) {
-				// queries returning all data
-				for _, q := range []Query{
-					{
-						Start: start,
-						End:   end,
-						Matchers: []Matcher{{
-							Name:  "__name__",
-							Type:  MatchEqual,
-							Value: "http_requests_total",
-						}},
-					},
+			t.Run("Read", func(t *testing.T) {
+				storedData := getData()
+				require.NoError(t, storage.Write(context.Background(), storedData))
 
-					{
-						Start: start,
-						End:   end,
-						Matchers: []Matcher{{
-							Name:  "__name__",
-							Type:  MatchNotEqual,
-							Value: "no_such_metric",
-						}},
-					},
-				} {
-					t.Run(q.String(), func(t *testing.T) {
-						data, err := storage.Read(context.Background(), []Query{q})
-						assert.NoError(t, err)
-						require.Len(t, data.Results, 1)
-						require.Len(t, data.Results[0].TimeSeries, 3)
-						sortTimeSeries(data.Results[0].TimeSeries)
-						for i, actual := range data.Results[0].TimeSeries {
-							sortLabels(actual.Labels)
-							expected := storedData.TimeSeries[i]
-							assert.Equal(t, expected, actual, messageTS(expected, actual))
-						}
-					})
-				}
+				t.Run("ByName", func(t *testing.T) {
+					// queries returning all data
+					for _, q := range []Query{
+						{
+							Start: start,
+							End:   end,
+							Matchers: []Matcher{{
+								Name:  "__name__",
+								Type:  MatchEqual,
+								Value: "http_requests_total",
+							}},
+						},
+						{
+							Start: start,
+							End:   end,
+							Matchers: []Matcher{{
+								Name:  "__name__",
+								Type:  MatchNotEqual,
+								Value: "no_such_metric",
+							}},
+						},
+					} {
+						t.Run(q.String(), func(t *testing.T) {
+							data, err := storage.Read(context.Background(), []Query{q})
+							require.NoError(t, err)
+							require.Len(t, data.Results, 1)
+							require.Len(t, data.Results[0].TimeSeries, 3)
+							sortTimeSeries(data.Results[0].TimeSeries)
+							for i, actual := range data.Results[0].TimeSeries {
+								sortLabels(actual.Labels)
+								expected := storedData.TimeSeries[i]
+								assert.Equal(t, expected, actual, messageTS(expected, actual))
+							}
+						})
+					}
 
-				// queries returning nothing
-				for _, q := range []Query{
-					{
-						Start: start,
-						End:   end,
-						Matchers: []Matcher{{
-							Name:  "__name__",
-							Type:  MatchEqual,
-							Value: "no_such_metric",
-						}},
-					},
+					// queries returning nothing
+					for _, q := range []Query{
+						{
+							Start: start,
+							End:   end,
+							Matchers: []Matcher{{
+								Name:  "__name__",
+								Type:  MatchEqual,
+								Value: "no_such_metric",
+							}},
+						},
+						{ // TODO should it return 3 series with 0 values, or 0 values?
+							Start: 0,
+							End:   0,
+							Matchers: []Matcher{{
+								Name:  "__name__",
+								Type:  MatchEqual,
+								Value: "http_requests_total",
+							}},
+						},
+						{
+							Start: start,
+							End:   end,
+							Matchers: []Matcher{{
+								Name:  "__name__",
+								Type:  MatchNotEqual,
+								Value: "http_requests_total",
+							}},
+						},
+					} {
+						t.Run(q.String(), func(t *testing.T) {
+							data, err := storage.Read(context.Background(), []Query{q})
+							require.NoError(t, err)
+							require.Len(t, data.Results, 1)
+							require.Len(t, data.Results[0].TimeSeries, 0)
+						})
+					}
+				})
 
-					// TODO should it return 3 series with 0 values, or 0 values?
-					{
-						Start: 0,
-						End:   0,
-						Matchers: []Matcher{{
-							Name:  "__name__",
-							Type:  MatchEqual,
-							Value: "http_requests_total",
-						}},
-					},
+				t.Run("ByNameRegexp", func(t *testing.T) {
+					// queries returning all data
+					for _, q := range []Query{
+						{
+							Start: start,
+							End:   end,
+							Matchers: []Matcher{{
+								Name:  "__name__",
+								Type:  MatchRegexp,
+								Value: "http_requests_.+",
+							}},
+						},
+						{
+							Start: start,
+							End:   end,
+							Matchers: []Matcher{{
+								Name:  "__name__",
+								Type:  MatchNotRegexp,
+								Value: "_requests_",
+							}},
+						},
+					} {
+						t.Run(q.String(), func(t *testing.T) {
+							data, err := storage.Read(context.Background(), []Query{q})
+							require.NoError(t, err)
+							require.Len(t, data.Results, 1)
+							require.Len(t, data.Results[0].TimeSeries, 3)
+							sortTimeSeries(data.Results[0].TimeSeries)
+							for i, actual := range data.Results[0].TimeSeries {
+								sortLabels(actual.Labels)
+								expected := storedData.TimeSeries[i]
+								assert.Equal(t, expected, actual, messageTS(expected, actual))
+							}
+						})
+					}
 
-					{
-						Start: start,
-						End:   end,
-						Matchers: []Matcher{{
-							Name:  "__name__",
-							Type:  MatchNotEqual,
-							Value: "http_requests_total",
-						}},
-					},
-				} {
-					t.Run(q.String(), func(t *testing.T) {
-						data, err := storage.Read(context.Background(), []Query{q})
-						assert.NoError(t, err)
-						require.Len(t, data.Results, 1)
-						require.Len(t, data.Results[0].TimeSeries, 0)
-					})
-				}
-			})
+					// queries returning nothing
+					for _, q := range []Query{
+						{
+							Start: start,
+							End:   end,
+							Matchers: []Matcher{{
+								Name:  "__name__",
+								Type:  MatchRegexp,
+								Value: "_requests_",
+							}},
+						},
+						{ // TODO should it return 3 series with 0 values, or 0 values?
+							Start: 0,
+							End:   0,
+							Matchers: []Matcher{{
+								Name:  "__name__",
+								Type:  MatchRegexp,
+								Value: "http_requests_.+",
+							}},
+						},
+						{
+							Start: start,
+							End:   end,
+							Matchers: []Matcher{{
+								Name:  "__name__",
+								Type:  MatchNotRegexp,
+								Value: "http_requests_.+",
+							}},
+						},
+					} {
+						t.Run(q.String(), func(t *testing.T) {
+							data, err := storage.Read(context.Background(), []Query{q})
+							require.NoError(t, err)
+							require.Len(t, data.Results, 1)
+							require.Len(t, data.Results[0].TimeSeries, 0)
+						})
+					}
+				})
 
-			t.Run("ReadByNameRegexp", func(t *testing.T) {
-				// queries returning all data
-				for _, q := range []Query{
-					{
-						Start: start,
-						End:   end,
-						Matchers: []Matcher{{
-							Name:  "__name__",
-							Type:  MatchRegexp,
-							Value: "http_requests_.+",
-						}},
-					},
+				t.Run("ByNonExistingLabel", func(t *testing.T) {
+					for _, q := range []Query{
+						{
+							Start: start,
+							End:   end,
+							Matchers: []Matcher{{
+								Name:  "no_such_label",
+								Type:  MatchEqual,
+								Value: "query",
+							}},
+						},
+					} {
+						t.Run(q.String(), func(t *testing.T) {
+							data, err := storage.Read(context.Background(), []Query{q})
+							require.NoError(t, err)
+							require.Len(t, data.Results, 1)
+							require.Len(t, data.Results[0].TimeSeries, 0)
+						})
+					}
+				})
 
-					{
-						Start: start,
-						End:   end,
-						Matchers: []Matcher{{
-							Name:  "__name__",
-							Type:  MatchNotRegexp,
-							Value: "_requests_",
-						}},
-					},
-				} {
-					t.Run(q.String(), func(t *testing.T) {
-						data, err := storage.Read(context.Background(), []Query{q})
-						assert.NoError(t, err)
-						require.Len(t, data.Results, 1)
-						require.Len(t, data.Results[0].TimeSeries, 3)
-						sortTimeSeries(data.Results[0].TimeSeries)
-						for i, actual := range data.Results[0].TimeSeries {
-							sortLabels(actual.Labels)
-							expected := storedData.TimeSeries[i]
-							assert.Equal(t, expected, actual, messageTS(expected, actual))
-						}
-					})
-				}
+				t.Run("BySeveralMatchers", func(t *testing.T) {
+					for _, q := range []Query{
+						{
+							Start: start,
+							End:   end,
+							Matchers: []Matcher{{
+								Name:  "__name__",
+								Type:  MatchEqual,
+								Value: "http_requests_total",
+							}, {
+								Name:  "no_such_label",
+								Type:  MatchNotEqual,
+								Value: "no_such_value",
+							}},
+						},
+						{
+							Start: start,
+							End:   end,
+							Matchers: []Matcher{{
+								Name:  "no_such_label",
+								Type:  MatchNotEqual,
+								Value: "no_such_value",
+							}, {
+								Name:  "__name__",
+								Type:  MatchEqual,
+								Value: "http_requests_total",
+							}},
+						},
+						{
+							Start: start,
+							End:   end,
+							Matchers: []Matcher{{
+								Name:  "no_such_label",
+								Type:  MatchNotEqual,
+								Value: "no_such_value",
+							}, {
+								Name:  "no_this_label",
+								Type:  MatchEqual,
+								Value: "",
+							}, {
+								Name:  "__name__",
+								Type:  MatchEqual,
+								Value: "http_requests_total",
+							}},
+						},
+					} {
+						t.Run(q.String(), func(t *testing.T) {
+							data, err := storage.Read(context.Background(), []Query{q})
+							require.NoError(t, err)
+							require.Len(t, data.Results, 1)
+							require.Len(t, data.Results[0].TimeSeries, 3)
+							sortTimeSeries(data.Results[0].TimeSeries)
+							for i, actual := range data.Results[0].TimeSeries {
+								sortLabels(actual.Labels)
+								expected := storedData.TimeSeries[i]
+								assert.Equal(t, expected, actual, messageTS(expected, actual))
+							}
+						})
+					}
+				})
 
-				// queries returning nothing
-				for _, q := range []Query{
-					{
-						Start: start,
-						End:   end,
-						Matchers: []Matcher{{
-							Name:  "__name__",
-							Type:  MatchRegexp,
-							Value: "_requests_",
-						}},
-					},
+				if storageName == "ClickHouse" {
+					t.Run("ByRawSQL", func(t *testing.T) {
+						for _, q := range []Query{
+							{
+								Start: start,
+								End:   end,
+								Matchers: []Matcher{{
+									Name:  "job",
+									Type:  MatchEqual,
+									Value: "rawsql",
+								}, {
+									Name:  "query",
+									Type:  MatchEqual,
+									Value: "SELECT * FROM samples ORDER BY fingerprint",
+								}},
+							},
+						} {
+							t.Run(q.String(), func(t *testing.T) {
+								data, err := storage.Read(context.Background(), []Query{q})
+								require.NoError(t, err)
+								require.Len(t, data.Results, 1)
 
-					// TODO should it return 3 series with 0 values, or 0 values?
-					{
-						Start: 0,
-						End:   0,
-						Matchers: []Matcher{{
-							Name:  "__name__",
-							Type:  MatchRegexp,
-							Value: "http_requests_.+",
-						}},
-					},
+								// for _, ts := range data.Results[0].TimeSeries {
+								// 	t.Log(formatTS(ts))
+								// }
 
-					{
-						Start: start,
-						End:   end,
-						Matchers: []Matcher{{
-							Name:  "__name__",
-							Type:  MatchNotRegexp,
-							Value: "http_requests_.+",
-						}},
-					},
-				} {
-					t.Run(q.String(), func(t *testing.T) {
-						data, err := storage.Read(context.Background(), []Query{q})
-						assert.NoError(t, err)
-						require.Len(t, data.Results, 1)
-						require.Len(t, data.Results[0].TimeSeries, 0)
-					})
-				}
-			})
-
-			t.Run("ReadByNonExistingLabel", func(t *testing.T) {
-				for _, q := range []Query{
-					{
-						Start: start,
-						End:   end,
-						Matchers: []Matcher{{
-							Name:  "no_such_label",
-							Type:  MatchEqual,
-							Value: "query",
-						}},
-					},
-				} {
-					t.Run(q.String(), func(t *testing.T) {
-						data, err := storage.Read(context.Background(), []Query{q})
-						assert.NoError(t, err)
-						require.Len(t, data.Results, 1)
-						require.Len(t, data.Results[0].TimeSeries, 0)
-					})
-				}
-			})
-
-			t.Run("ReadBySeveralMatchers", func(t *testing.T) {
-				for _, q := range []Query{
-					{
-						Start: start,
-						End:   end,
-						Matchers: []Matcher{{
-							Name:  "__name__",
-							Type:  MatchEqual,
-							Value: "http_requests_total",
-						}, {
-							Name:  "no_such_label",
-							Type:  MatchNotEqual,
-							Value: "no_such_value",
-						}},
-					},
-
-					{
-						Start: start,
-						End:   end,
-						Matchers: []Matcher{{
-							Name:  "no_such_label",
-							Type:  MatchNotEqual,
-							Value: "no_such_value",
-						}, {
-							Name:  "__name__",
-							Type:  MatchEqual,
-							Value: "http_requests_total",
-						}},
-					},
-					{
-						Start: start,
-						End:   end,
-						Matchers: []Matcher{{
-							Name:  "no_such_label",
-							Type:  MatchNotEqual,
-							Value: "no_such_value",
-						}, {
-							Name:  "no_this_label",
-							Type:  MatchEqual,
-							Value: "",
-						}, {
-							Name:  "__name__",
-							Type:  MatchEqual,
-							Value: "http_requests_total",
-						}},
-					},
-				} {
-					t.Run(q.String(), func(t *testing.T) {
-						data, err := storage.Read(context.Background(), []Query{q})
-						assert.NoError(t, err)
-						require.Len(t, data.Results, 1)
-						require.Len(t, data.Results[0].TimeSeries, 3)
-						sortTimeSeries(data.Results[0].TimeSeries)
-						for i, actual := range data.Results[0].TimeSeries {
-							sortLabels(actual.Labels)
-							expected := storedData.TimeSeries[i]
-							assert.Equal(t, expected, actual, messageTS(expected, actual))
+								require.Len(t, data.Results[0].TimeSeries, 15)
+							})
 						}
 					})
 				}
@@ -419,7 +449,7 @@ func TestStorages(t *testing.T) {
 				}
 
 				data, err := storage.Read(context.Background(), []Query{q})
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				require.Len(t, data.Results, 1)
 				require.Len(t, data.Results[0].TimeSeries, len(storedData.TimeSeries))
 				sortTimeSeries(data.Results[0].TimeSeries)

@@ -102,7 +102,9 @@ func (p *PromAPI) Read(rw http.ResponseWriter, req *http.Request) error {
 
 	// read from storage
 	queries := p.convertReadRequest(&request)
-	p.Logger.Infof("Queries: %s", queries)
+	for i, q := range queries {
+		p.Logger.Infof("Query %d: %s", i+1, q)
+	}
 	response, err := p.Storage.Read(req.Context(), queries)
 	if err != nil {
 		return err

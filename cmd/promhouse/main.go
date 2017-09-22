@@ -51,7 +51,7 @@ var (
 	promAddrF  = flag.String("listen-prom-addr", "127.0.0.1:7781", "Prometheus remote API server listen address")
 	debugAddrF = flag.String("listen-debug-addr", "127.0.0.1:7782", "Debug server listen address")
 	debugF     = flag.Bool("debug", false, "Enable debug logging")
-	initF      = flag.Bool("init", false, "Initialize ClickHouse schema (drops all data)")
+	dropF      = flag.Bool("drop", false, "Drop existing ClickHouse schema")
 )
 
 // runPromServer runs Prometheus API server until context is canceled, then gracefully stops it.
@@ -60,7 +60,7 @@ func runPromServer(ctx context.Context) {
 
 	// storage := storages.NewMemory()
 
-	storage, err := storages.NewClickHouse("tcp://127.0.0.1:9000", "prometheus", *initF)
+	storage, err := storages.NewClickHouse("tcp://127.0.0.1:9000", "prometheus", *dropF)
 	if err != nil {
 		l.Panic(err)
 	}
@@ -167,7 +167,7 @@ func main() {
 	log.SetFlags(0)
 	log.SetPrefix("stdlog: ")
 	flag.Parse()
-	logrus.SetLevel(logrus.WarnLevel)
+	logrus.SetLevel(logrus.InfoLevel)
 	if *debugF {
 		logrus.SetLevel(logrus.DebugLevel)
 	}

@@ -20,6 +20,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -63,19 +64,11 @@ type ClickHouse struct {
 	mWrittenSamples prometheus.Counter
 }
 
-func NewClickHouse(dsn string, database string, init bool) (*ClickHouse, error) {
+func NewClickHouse(dsn string, database string, drop bool) (*ClickHouse, error) {
 	l := logrus.WithField("component", "clickhouse")
 
-	db, err := sql.Open("clickhouse", dsn)
-	if err != nil {
-		return nil, err
-	}
-	if err = db.Ping(); err != nil {
-		return nil, err
-	}
-
 	var queries []string
-	if init {
+	if drop {
 		queries = append(queries, fmt.Sprintf(`DROP DATABASE IF EXISTS %s`, database))
 	}
 	queries = append(queries, fmt.Sprintf(`CREATE DATABASE IF NOT EXISTS %s`, database))
@@ -99,11 +92,37 @@ func NewClickHouse(dsn string, database string, init bool) (*ClickHouse, error) 
 		)
 		ENGINE = ReplacingMergeTree(date, fingerprint, 8192)`, database))
 
+	// we can't use database in DSN if it doesn't yet exist, so handle that in a special way
+
+	dsnURL, err := url.Parse(dsn)
+	if err != nil {
+		return nil, err
+	}
+	if dsnURL.Query().Get("database") != "" {
+		return nil, fmt.Errorf("database should no be set in ClickHouse dsn")
+	}
+
+	// init schema
+	initDB, err := sql.Open("clickhouse", dsn)
+	if err != nil {
+		return nil, err
+	}
+	defer initDB.Close()
 	for _, q := range queries {
 		l.Infof("Executing: %s", q)
-		if _, err = db.Exec(q); err != nil {
+		if _, err = initDB.Exec(q); err != nil {
 			return nil, err
 		}
+	}
+
+	// reconnect to created database
+	q := dsnURL.Query()
+	q.Set("database", database)
+	dsnURL.RawQuery = q.Encode()
+	dsn = dsnURL.String()
+	db, err := sql.Open("clickhouse", dsn)
+	if err != nil {
+		return nil, err
 	}
 
 	ch := &ClickHouse{
@@ -319,6 +338,23 @@ func (ch *ClickHouse) Read(ctx context.Context, queries []Query) (res *prompb.Re
 		}
 		ch.mReadErrors.WithLabelValues(t).Inc()
 	}()
+
+	// special case for {{job="rawsql", query="SELECT …"}} (start is ignored)
+	if len(queries) == 1 && len(queries[0].Matchers) == 2 {
+		var query string
+		var hasJob bool
+		for _, m := range queries[0].Matchers {
+			if m.Type == MatchEqual && m.Name == "job" && m.Value == "rawsql" {
+				hasJob = true
+			}
+			if m.Type == MatchEqual && m.Name == "query" {
+				query = m.Value
+			}
+		}
+		if hasJob && query != "" {
+			return ch.readRawSQL(ctx, query, int64(queries[0].End))
+		}
+	}
 
 	res = &prompb.ReadResponse{
 		Results: make([]*prompb.QueryResult, len(queries)),

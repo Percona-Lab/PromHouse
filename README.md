@@ -9,3 +9,47 @@ PromHouse is a long-term remote storage with built-in clustering and downsamplin
 Feel free to ~~like, share, retweet,~~ star and watch it, but **do not use it in production** yet.
 
 It requires Go 1.9+.
+
+## SQL queries
+
+The largest jobs and instances by time series count:
+```sql
+SELECT
+    job,
+    instance,
+    COUNT(*) AS value
+FROM metrics
+GROUP BY
+    visitParamExtractString(labels, 'job') AS job,
+    visitParamExtractString(labels, 'instance') AS instance
+ORDER BY value DESC LIMIT 10
+```
+
+The largest metrics by time series count (cardinality):
+```sql
+SELECT
+    name,
+    COUNT(*) AS value
+FROM metrics
+GROUP BY
+    visitParamExtractString(labels, '__name__') AS name
+ORDER BY value DESC LIMIT 10
+```
+
+The largest time series by samples count:
+```sql
+SELECT
+    labels,
+    value
+FROM metrics
+ANY INNER JOIN
+(
+    SELECT
+        fingerprint,
+        COUNT(*) AS value
+    FROM samples
+    GROUP BY fingerprint
+    ORDER BY value DESC
+    LIMIT 10
+) USING (fingerprint)
+```

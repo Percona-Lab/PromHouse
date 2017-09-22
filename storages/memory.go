@@ -64,10 +64,10 @@ func (m *Memory) Read(ctx context.Context, queries []Query) (*prompb.ReadRespons
 				var ts *prompb.TimeSeries
 				start, end := int64(q.Start), int64(q.End)
 				for _, sp := range m.samples[f] {
-					if sp.Timestamp < start {
+					if sp.TimestampMs < start {
 						continue
 					}
-					if sp.Timestamp > end {
+					if sp.TimestampMs > end {
 						break
 					}
 					if ts == nil {
@@ -102,7 +102,7 @@ func (m *Memory) Write(ctx context.Context, data *prompb.WriteRequest) error {
 
 		s := m.samples[f]
 		s = append(s, ts.Samples...)
-		less := func(i, j int) bool { return s[i].Timestamp < s[j].Timestamp }
+		less := func(i, j int) bool { return s[i].TimestampMs < s[j].TimestampMs }
 		if !sort.SliceIsSorted(s, less) {
 			sort.Slice(s, less)
 		}

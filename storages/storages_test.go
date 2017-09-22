@@ -42,11 +42,11 @@ func getData() *prompb.WriteRequest {
 					{Name: "handler", Value: "query"},
 				},
 				Samples: []*prompb.Sample{
-					{Value: 13, Timestamp: int64(start)},
-					{Value: 14, Timestamp: int64(start.Add(1 * time.Second))},
-					{Value: 14, Timestamp: int64(start.Add(2 * time.Second))},
-					{Value: 14, Timestamp: int64(start.Add(3 * time.Second))},
-					{Value: 15, Timestamp: int64(start.Add(4 * time.Second))},
+					{Value: 13, TimestampMs: int64(start)},
+					{Value: 14, TimestampMs: int64(start.Add(1 * time.Second))},
+					{Value: 14, TimestampMs: int64(start.Add(2 * time.Second))},
+					{Value: 14, TimestampMs: int64(start.Add(3 * time.Second))},
+					{Value: 15, TimestampMs: int64(start.Add(4 * time.Second))},
 				},
 			},
 			{
@@ -56,11 +56,11 @@ func getData() *prompb.WriteRequest {
 					{Name: "handler", Value: "query_range"},
 				},
 				Samples: []*prompb.Sample{
-					{Value: 9, Timestamp: int64(start)},
-					{Value: 9, Timestamp: int64(start.Add(1 * time.Second))},
-					{Value: 9, Timestamp: int64(start.Add(2 * time.Second))},
-					{Value: 11, Timestamp: int64(start.Add(3 * time.Second))},
-					{Value: 11, Timestamp: int64(start.Add(4 * time.Second))},
+					{Value: 9, TimestampMs: int64(start)},
+					{Value: 9, TimestampMs: int64(start.Add(1 * time.Second))},
+					{Value: 9, TimestampMs: int64(start.Add(2 * time.Second))},
+					{Value: 11, TimestampMs: int64(start.Add(3 * time.Second))},
+					{Value: 11, TimestampMs: int64(start.Add(4 * time.Second))},
 				},
 			},
 			{
@@ -70,11 +70,11 @@ func getData() *prompb.WriteRequest {
 					{Name: "handler", Value: "prometheus"},
 				},
 				Samples: []*prompb.Sample{
-					{Value: 591, Timestamp: int64(start)},
-					{Value: 592, Timestamp: int64(start.Add(1 * time.Second))},
-					{Value: 593, Timestamp: int64(start.Add(2 * time.Second))},
-					{Value: 594, Timestamp: int64(start.Add(3 * time.Second))},
-					{Value: 595, Timestamp: int64(start.Add(4 * time.Second))},
+					{Value: 591, TimestampMs: int64(start)},
+					{Value: 592, TimestampMs: int64(start.Add(1 * time.Second))},
+					{Value: 593, TimestampMs: int64(start.Add(2 * time.Second))},
+					{Value: 594, TimestampMs: int64(start.Add(3 * time.Second))},
+					{Value: 595, TimestampMs: int64(start.Add(4 * time.Second))},
 				},
 			},
 		},
@@ -119,7 +119,7 @@ func formatTS(ts *prompb.TimeSeries) string {
 	res := makeMetric(ts.Labels).String()
 	for _, s := range ts.Samples {
 		res += "\n\t" + model.SamplePair{
-			Timestamp: model.Time(s.Timestamp),
+			Timestamp: model.Time(s.TimestampMs),
 			Value:     model.SampleValue(s.Value),
 		}.String()
 	}
@@ -394,7 +394,7 @@ func TestStorages(t *testing.T) {
 			})
 
 			t.Run("WriteFunnyLabels", func(t *testing.T) {
-				s := []*prompb.Sample{{Value: 1, Timestamp: int64(start)}}
+				s := []*prompb.Sample{{Value: 1, TimestampMs: int64(start)}}
 				storedData := &prompb.WriteRequest{
 					Timeseries: []*prompb.TimeSeries{
 						{Labels: []*prompb.Label{{"__name__", "funny_1"}, {"label", ""}}, Samples: s},

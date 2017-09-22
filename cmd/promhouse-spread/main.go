@@ -219,8 +219,8 @@ func main() {
 
 			ts.Samples = []*prompb.Sample{
 				{
-					Value:     float64(s.Value),
-					Timestamp: int64(model.TimeFromUnixNano(timestamp.UnixNano())),
+					Value:       float64(s.Value),
+					TimestampMs: int64(model.TimeFromUnixNano(timestamp.UnixNano())),
 				},
 			}
 			samples++

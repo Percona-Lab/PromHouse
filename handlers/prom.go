@@ -19,6 +19,7 @@ package handlers
 import (
 	"io/ioutil"
 	"net/http"
+	"runtime/pprof"
 	"sync"
 
 	"github.com/gogo/protobuf/proto"
@@ -95,6 +96,8 @@ func (p *PromAPI) convertReadRequest(request *prompb.ReadRequest) []storages.Que
 }
 
 func (p *PromAPI) Read(rw http.ResponseWriter, req *http.Request) error {
+	ctx := pprof.WithLabels(req.Context(), pprof.Labels("handler", "/read"))
+
 	var request prompb.ReadRequest
 	if err := readPB(req, &request); err != nil {
 		return err
@@ -105,7 +108,7 @@ func (p *PromAPI) Read(rw http.ResponseWriter, req *http.Request) error {
 	for i, q := range queries {
 		p.Logger.Infof("Query %d: %s", i+1, q)
 	}
-	response, err := p.Storage.Read(req.Context(), queries)
+	response, err := p.Storage.Read(ctx, queries)
 	if err != nil {
 		return err
 	}
@@ -128,9 +131,11 @@ func (p *PromAPI) Read(rw http.ResponseWriter, req *http.Request) error {
 }
 
 func (p *PromAPI) Write(rw http.ResponseWriter, req *http.Request) error {
+	ctx := pprof.WithLabels(req.Context(), pprof.Labels("handler", "/write"))
+
 	var request prompb.WriteRequest
 	if err := readPB(req, &request); err != nil {
 		return err
 	}
-	return p.Storage.Write(req.Context(), &request)
+	return p.Storage.Write(ctx, &request)
 }

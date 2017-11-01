@@ -85,7 +85,7 @@ func NewClickHouse(dsn string, database string, drop bool) (*ClickHouse, error) 
 		ENGINE = MergeTree(date, (fingerprint, timestamp_ms), 8192)`, database))
 
 	queries = append(queries, fmt.Sprintf(`
-		CREATE TABLE IF NOT EXISTS %s.metrics (
+		CREATE TABLE IF NOT EXISTS %s.timeseries (
 			date Date,
 			fingerprint UInt64,
 			labels String
@@ -208,7 +208,7 @@ func NewClickHouse(dsn string, database string, drop bool) (*ClickHouse, error) 
 
 func (ch *ClickHouse) runMetricsReloader(ctx context.Context) {
 	ticker := time.Tick(time.Second)
-	q := fmt.Sprintf(`SELECT DISTINCT fingerprint, labels FROM %s.metrics`, ch.database)
+	q := fmt.Sprintf(`SELECT DISTINCT fingerprint, labels FROM %s.timeseries`, ch.database)
 	for {
 		ch.metricsRW.RLock()
 		metrics := make(map[uint64][]*prompb.Label, len(ch.metrics))
@@ -294,7 +294,7 @@ func (ch *ClickHouse) Collect(c chan<- prometheus.Metric) {
 			return
 		}
 		switch table {
-		case "metrics":
+		case "timeseries":
 			ch.mMetricsCurrent.Set(float64(r))
 			// ignore b and vb
 		case "samples":
@@ -496,7 +496,7 @@ func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 	// write new metrics
 	if len(newMetrics) > 0 {
 		err = inTransaction(ctx, ch.db, func(tx *sql.Tx) error {
-			query := fmt.Sprintf(`INSERT INTO %s.metrics (date, fingerprint, labels) VALUES (?, ?, ?)`, ch.database)
+			query := fmt.Sprintf(`INSERT INTO %s.timeseries (date, fingerprint, labels) VALUES (?, ?, ?)`, ch.database)
 			var stmt *sql.Stmt
 			if stmt, err = tx.PrepareContext(ctx, query); err != nil {
 				return errors.WithStack(err)

@@ -225,7 +225,7 @@ func main() {
 			}
 			samples++
 
-			// make timeserie for each instance
+			// make time series for each instance
 			for i := 0; i < *instancesF; i++ {
 				ts.Labels[0] = &prompb.Label{
 					Name:  "instance",

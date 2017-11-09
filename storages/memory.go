@@ -28,9 +28,9 @@ import (
 
 // Memory is a functional dummy storage for testing.
 type Memory struct {
+	rw      sync.RWMutex
 	metrics map[uint64][]*prompb.Label
 	samples map[uint64][]*prompb.Sample
-	rw      sync.RWMutex
 }
 
 func NewMemory() *Memory {

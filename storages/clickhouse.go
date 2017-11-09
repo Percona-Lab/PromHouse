@@ -47,8 +47,8 @@ type ClickHouse struct {
 	l        *logrus.Entry
 	database string
 
-	metrics   map[uint64][]*prompb.Label
 	metricsRW sync.RWMutex
+	metrics   map[uint64][]*prompb.Label
 
 	mMetricsCurrent             prometheus.Gauge
 	mSamplesCurrent             prometheus.Gauge

@@ -18,7 +18,7 @@ SELECT
     job,
     instance,
     COUNT(*) AS value
-FROM timeseries
+FROM time_series
 GROUP BY
     visitParamExtractString(labels, 'job') AS job,
     visitParamExtractString(labels, 'instance') AS instance
@@ -30,7 +30,7 @@ The largest metrics by time series count (cardinality):
 SELECT
     name,
     COUNT(*) AS value
-FROM timeseries
+FROM time_series
 GROUP BY
     visitParamExtractString(labels, '__name__') AS name
 ORDER BY value DESC LIMIT 10
@@ -41,7 +41,7 @@ The largest time series by samples count:
 SELECT
     labels,
     value
-FROM timeseries
+FROM time_series
 ANY INNER JOIN
 (
     SELECT

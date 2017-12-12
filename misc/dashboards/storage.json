@@ -441,7 +441,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "promhouse_clickhouse_metrics_current",
+              "expr": "promhouse_clickhouse_time_series_current",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "Currently stored",
@@ -452,7 +452,7 @@
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "Metrics",
+          "title": "Time series",
           "tooltip": {
             "shared": true,
             "sort": 0,
@@ -522,7 +522,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "clickhouse_table_parts_bytes{table=\"metrics\"}",
+              "expr": "clickhouse_table_parts_bytes{table=\"time_series\"}",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "Bytes",
@@ -530,7 +530,7 @@
               "step": 4
             },
             {
-              "expr": "clickhouse_table_parts_count{table=\"metrics\"}",
+              "expr": "clickhouse_table_parts_count{table=\"time_series\"}",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "Parts",
@@ -541,7 +541,7 @@
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "Metrics table",
+          "title": "Time series table",
           "tooltip": {
             "shared": true,
             "sort": 0,

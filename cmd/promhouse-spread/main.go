@@ -176,7 +176,7 @@ func main() {
 				}
 
 				if time.Now().After(nextReport) {
-					log.Printf("writer %d: %d timeseries in %s", id, len(req.TimeSeries), time.Now().Sub(start))
+					log.Printf("writer %d: %d time series in %s", id, len(req.TimeSeries), time.Now().Sub(start))
 					nextReport = time.Now().Add(5 * time.Second)
 				}
 			}

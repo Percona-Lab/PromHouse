@@ -115,6 +115,7 @@ func BenchmarkWrite(b *testing.B) {
 	req, err := http.NewRequest("", "", r)
 	require.NoError(b, err)
 
+	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		r.Seek(0, io.SeekStart)

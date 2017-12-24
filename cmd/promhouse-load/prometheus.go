@@ -19,7 +19,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -182,7 +181,7 @@ func (pc *prometheusClient) readTS() (*prompb.TimeSeries, error) {
 	}
 	pc.bRead = buf.Bytes()
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("unexpected response code %d: %s", resp.StatusCode, pc.bRead)
+		return nil, errors.Errorf("unexpected response code %d: %s", resp.StatusCode, pc.bRead)
 	}
 
 	// decode response reusing bDecoded
@@ -199,7 +198,7 @@ func (pc *prometheusClient) readTS() (*prompb.TimeSeries, error) {
 	}
 	t := response.Results[0].TimeSeries
 	if len(t) != 1 {
-		return nil, fmt.Errorf("expected 1 time series, got %d", len(t))
+		return nil, errors.Errorf("expected 1 time series, got %d", len(t))
 	}
 	pc.l.Debugf("Got %s with %d samples.", t[0].Labels, len(t[0].Samples))
 	return t[0], nil

@@ -47,11 +47,11 @@ func main() {
 	flag.Var(&stepF, "read-prometheus-step", "Interval for a single request to Prometheus")
 	var (
 		debugF               = flag.Bool("debug", false, "Enable debug outout")
+		readFileF            = flag.String("read-file", "", "Read from a given file")
 		readPrometheusF      = flag.String("read-prometheus", "", "Read from a given Prometheus")
 		readPrometheusMaxTSF = flag.Int("read-prometheus-max-ts", 0, "Maximum number of time series to read from Prometheus")
-		readFileF            = flag.String("read-file", "", "Read from a given file")
-		// writePromHouseF = flag.String("write-promhouse", "Write to a given PromHouse")
-		writeFileF = flag.String("write-file", "", "Write to a given file")
+		writeFileF           = flag.String("write-file", "", "Write to a given file")
+		writePromHouseF      = flag.String("write-promhouse", "", "Write to a given PromHouse")
 	)
 	flag.Parse()
 
@@ -103,6 +103,13 @@ func main() {
 		}()
 
 		writer = newFileClient(f)
+
+	case *writePromHouseF != "":
+		var err error
+		writer, err = newpromhouseClient(*writePromHouseF)
+		if err != nil {
+			logrus.Fatal(err)
+		}
 
 	default:
 		logrus.Fatal("No -write-* flag given.")

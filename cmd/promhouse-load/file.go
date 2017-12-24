@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
@@ -31,16 +32,24 @@ import (
 )
 
 type fileClient struct {
-	f                    *os.File
 	l                    *logrus.Entry
+	f                    *os.File
+	fSize                int64
+	lastLog              time.Time
 	bRead, bDecoded      []byte
 	bMarshaled, bEncoded []byte
 }
 
 func newFileClient(f *os.File) *fileClient {
+	var fSize int64
+	fi, err := f.Stat()
+	if err == nil {
+		fSize = fi.Size()
+	}
 	return &fileClient{
-		f:          f,
 		l:          logrus.WithField("client", fmt.Sprintf("file %s", f.Name())),
+		f:          f,
+		fSize:      fSize,
 		bRead:      make([]byte, 1048576),
 		bDecoded:   make([]byte, 1048576),
 		bMarshaled: make([]byte, 1048576),
@@ -49,6 +58,16 @@ func newFileClient(f *os.File) *fileClient {
 }
 
 func (fc *fileClient) readTS() (*prompb.TimeSeries, error) {
+	if time.Since(fc.lastLog) > 10*time.Second {
+		fc.lastLog = time.Now()
+		if fc.fSize != 0 {
+			offset, err := fc.f.Seek(0, 1)
+			if err == nil {
+				fc.l.Infof("Read %.2f%% of the file.", float64(offset)/float64(fc.fSize))
+			}
+		}
+	}
+
 	// read next message reusing bRead
 	var err error
 	var size uint32

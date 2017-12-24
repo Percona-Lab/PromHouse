@@ -2,8 +2,8 @@ all: test
 
 init:
 	go get -u github.com/AlekSi/gocoverutil
-	go get -u gopkg.in/alecthomas/gometalinter.v1
-	gometalinter.v1 --install
+	go get -u gopkg.in/alecthomas/gometalinter.v2
+	gometalinter.v2 --install
 
 protos:
 	go install -v ./vendor/github.com/golang/protobuf/protoc-gen-go
@@ -41,7 +41,7 @@ cover: install
 	gocoverutil test -v -covermode=count ./...
 
 check: install
-	-gometalinter.v1 --tests --deadline=180s ./...
+	-gometalinter.v2 --tests --vendor --deadline=300s --sort=path ./...
 
 env-run:
 	docker-compose -f misc/docker-compose.yml -p promhouse up

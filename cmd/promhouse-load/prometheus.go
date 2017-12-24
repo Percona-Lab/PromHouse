@@ -154,6 +154,9 @@ func (pc *prometheusClient) readTS() (*prompb.TimeSeries, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to marshal request")
 	}
+	if request.Size() != size {
+		return nil, errors.Errorf("unexpected size: expected %d, got %d", request.Size(), size)
+	}
 
 	// encode request reusing bEncoded
 	pc.bEncoded = pc.bEncoded[:cap(pc.bEncoded)]

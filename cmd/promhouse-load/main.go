@@ -66,7 +66,13 @@ func main() {
 		if err != nil {
 			logrus.Fatal(err)
 		}
-		defer f.Close()
+		defer func() {
+			if err = f.Close(); err != nil {
+				logrus.Error(err)
+			}
+			logrus.Infof("%s closed.", f.Name())
+		}()
+
 		reader = newFileClient(f)
 
 	case *readPrometheusF != "":
@@ -89,25 +95,38 @@ func main() {
 		if err != nil {
 			logrus.Fatal(err)
 		}
-		defer f.Close()
+		defer func() {
+			if err = f.Close(); err != nil {
+				logrus.Error(err)
+			}
+			logrus.Infof("%s closed.", f.Name())
+		}()
+
 		writer = newFileClient(f)
 
 	default:
 		logrus.Fatal("No -write-* flag given.")
 	}
 
-	for {
-		ts, err := reader.readTS()
-		if err != nil {
-			if err != io.EOF {
-				logrus.Errorf("Read error: %+v", err)
+	ch := make(chan *prompb.TimeSeries, 100)
+	go func() {
+		for {
+			ts, err := reader.readTS()
+			if err != nil {
+				if err != io.EOF {
+					logrus.Errorf("Read error: %+v", err)
+				}
+				close(ch)
+				return
 			}
-			break
+			ch <- ts
 		}
+	}()
 
-		if err = writer.writeTS(ts); err != nil {
+	for ts := range ch {
+		if err := writer.writeTS(ts); err != nil {
 			logrus.Errorf("Write error: %+v", err)
-			break
+			return
 		}
 	}
 }

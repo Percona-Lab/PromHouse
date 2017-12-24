@@ -18,18 +18,21 @@ package main
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
 	"os"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 
 	"github.com/Percona-Lab/PromHouse/prompb"
 )
 
 type fileClient struct {
 	f                    *os.File
+	l                    *logrus.Entry
 	bRead, bDecoded      []byte
 	bMarshaled, bEncoded []byte
 }
@@ -37,6 +40,7 @@ type fileClient struct {
 func newFileClient(f *os.File) *fileClient {
 	return &fileClient{
 		f:          f,
+		l:          logrus.WithField("client", fmt.Sprintf("file %s", f.Name())),
 		bRead:      make([]byte, 1048576),
 		bDecoded:   make([]byte, 1048576),
 		bMarshaled: make([]byte, 1048576),
@@ -48,7 +52,10 @@ func (fc *fileClient) readTS() (*prompb.TimeSeries, error) {
 	// read next message reusing bRead
 	var err error
 	var size uint32
-	if err = binary.Read(fc.f, binary.BigEndian, size); err != nil {
+	if err = binary.Read(fc.f, binary.BigEndian, &size); err != nil {
+		if err == io.EOF {
+			return nil, err
+		}
 		return nil, errors.Wrap(err, "failed to read message size")
 	}
 	if uint32(cap(fc.bRead)) >= size {
@@ -87,6 +94,9 @@ func (fc *fileClient) writeTS(ts *prompb.TimeSeries) error {
 	size, err = ts.MarshalTo(fc.bMarshaled)
 	if err != nil {
 		return errors.Wrap(err, "failed to marshal message")
+	}
+	if ts.Size() != size {
+		return errors.Errorf("unexpected size: expected %d, got %d", ts.Size(), size)
 	}
 
 	// encode message reusing bEncoded

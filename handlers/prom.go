@@ -36,9 +36,12 @@ type PromAPI struct {
 	Logger  *logrus.Entry
 }
 
+// Store pointers, not slices.
+// See https://github.com/dominikh/go-tools/blob/master/cmd/staticcheck/docs/checks/SA6002
 var snappyPool = sync.Pool{
 	New: func() interface{} {
-		return make([]byte, 1024)
+		b := make([]byte, 1024)
+		return &b
 	},
 }
 
@@ -48,13 +51,13 @@ func readPB(req *http.Request, pb proto.Message) error {
 		return err
 	}
 
-	dst := snappyPool.Get().([]byte)
+	dst := *snappyPool.Get().(*[]byte)
 	dst = dst[:cap(dst)]
 	b, err := snappy.Decode(dst, compressed)
 	if err == nil {
 		err = proto.Unmarshal(b, pb)
 	}
-	snappyPool.Put(b)
+	snappyPool.Put(&b)
 	return err
 }
 
@@ -120,11 +123,11 @@ func (p *PromAPI) Read(ctx context.Context, rw http.ResponseWriter, req *http.Re
 	}
 	rw.Header().Set("Content-Type", "application/x-protobuf")
 	rw.Header().Set("Content-Encoding", "snappy")
-	dst := snappyPool.Get().([]byte)
+	dst := *snappyPool.Get().(*[]byte)
 	dst = dst[:cap(dst)]
 	compressed := snappy.Encode(dst, b)
 	_, err = rw.Write(compressed)
-	snappyPool.Put(compressed)
+	snappyPool.Put(&compressed)
 	return err
 }
 

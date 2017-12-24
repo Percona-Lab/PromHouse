@@ -207,7 +207,9 @@ func NewClickHouse(dsn string, database string, drop bool) (*ClickHouse, error) 
 }
 
 func (ch *ClickHouse) runTimeSeriesReloader(ctx context.Context) {
-	ticker := time.Tick(time.Second)
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
 	q := fmt.Sprintf(`SELECT DISTINCT fingerprint, labels FROM %s.time_series`, ch.database)
 	for {
 		ch.timeSeriesRW.RLock()
@@ -250,7 +252,7 @@ func (ch *ClickHouse) runTimeSeriesReloader(ctx context.Context) {
 		case <-ctx.Done():
 			ch.l.Warn(ctx.Err)
 			return
-		case <-ticker:
+		case <-ticker.C:
 		}
 	}
 }

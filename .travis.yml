@@ -4,7 +4,7 @@ language: go
 
 go:
   - 1.9.x
-  # - master
+  - master
 
 env:
   - PROM_IMAGE=prom/prometheus:v1.8.2 PROM_CONFIG=prom1

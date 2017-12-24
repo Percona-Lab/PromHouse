@@ -18,6 +18,7 @@ package main
 
 import (
 	"flag"
+	"io"
 	"log"
 	"os"
 	"time"
@@ -38,15 +39,17 @@ type tsWriter interface {
 
 func main() {
 	log.SetFlags(0)
+	log.SetPrefix("stdlog: ")
 
 	lastF := model.Duration(30 * 24 * time.Hour)
 	flag.Var(&lastF, "read-prometheus-last", "Read from Prometheus since that time ago")
 	stepF := model.Duration(3 * time.Hour)
 	flag.Var(&stepF, "read-prometheus-step", "Interval for a single request to Prometheus")
 	var (
-		debugF          = flag.Bool("debug", false, "Enable debug outout")
-		readPrometheusF = flag.String("read-prometheus", "", "Read from a given Prometheus")
-		readFileF       = flag.String("read-file", "", "Read from a given file")
+		debugF               = flag.Bool("debug", false, "Enable debug outout")
+		readPrometheusF      = flag.String("read-prometheus", "", "Read from a given Prometheus")
+		readPrometheusMaxTSF = flag.Int("read-prometheus-max-ts", 0, "Maximum number of time series to read from Prometheus")
+		readFileF            = flag.String("read-file", "", "Read from a given file")
 		// writePromHouseF = flag.String("write-promhouse", "Write to a given PromHouse")
 		writeFileF = flag.String("write-file", "", "Write to a given file")
 	)
@@ -61,36 +64,22 @@ func main() {
 	case *readFileF != "":
 		f, err := os.Open(*readFileF)
 		if err != nil {
-			log.Fatal(err)
+			logrus.Fatal(err)
 		}
 		defer f.Close()
-
-		r := newFileClient(f)
-		reader = r
-		defer func() {
-			logrus.Debugf(
-				"fileClient reader caps: bRead=%d, bDecoded=%d, bMarshaled=%d, bEncoded=%d",
-				cap(r.bRead), cap(r.bDecoded), cap(r.bMarshaled), cap(r.bEncoded),
-			)
-		}()
+		reader = newFileClient(f)
 
 	case *readPrometheusF != "":
 		end := time.Now().Truncate(time.Minute)
 		start := end.Add(-time.Duration(lastF))
-		r, err := newPrometheusClient(*readPrometheusF, start, end, time.Duration(stepF))
+		var err error
+		reader, err = newPrometheusClient(*readPrometheusF, start, end, time.Duration(stepF), *readPrometheusMaxTSF)
 		if err != nil {
-			log.Fatal(err)
+			logrus.Fatal(err)
 		}
-		reader = r
-		defer func() {
-			logrus.Debugf(
-				"prometheusClient caps: bRead=%d, bDecoded=%d, bMarshaled=%d, bEncoded=%d",
-				cap(r.bRead), cap(r.bDecoded), cap(r.bMarshaled), cap(r.bEncoded),
-			)
-		}()
 
 	default:
-		log.Fatal("No -read-* flag given.")
+		logrus.Fatal("No -read-* flag given.")
 	}
 
 	var writer tsWriter
@@ -98,32 +87,26 @@ func main() {
 	case *writeFileF != "":
 		f, err := os.Create(*writeFileF)
 		if err != nil {
-			log.Fatal(err)
+			logrus.Fatal(err)
 		}
 		defer f.Close()
-
-		w := newFileClient(f)
-		writer = w
-		defer func() {
-			logrus.Debugf(
-				"fileClient writer caps: bRead=%d, bDecoded=%d, bMarshaled=%d, bEncoded=%d",
-				cap(w.bRead), cap(w.bDecoded), cap(w.bMarshaled), cap(w.bEncoded),
-			)
-		}()
+		writer = newFileClient(f)
 
 	default:
-		log.Fatal("No -write-* flag given.")
+		logrus.Fatal("No -write-* flag given.")
 	}
 
 	for {
 		ts, err := reader.readTS()
 		if err != nil {
-			log.Printf("%+v", err)
+			if err != io.EOF {
+				logrus.Errorf("Read error: %+v", err)
+			}
 			break
 		}
 
 		if err = writer.writeTS(ts); err != nil {
-			log.Printf("%+v", err)
+			logrus.Errorf("Write error: %+v", err)
 			break
 		}
 	}

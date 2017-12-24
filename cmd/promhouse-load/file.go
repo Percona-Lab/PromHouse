@@ -37,10 +37,10 @@ type fileClient struct {
 func newFileClient(f *os.File) *fileClient {
 	return &fileClient{
 		f:          f,
-		bRead:      make([]byte, 1),
-		bDecoded:   make([]byte, 1),
-		bMarshaled: make([]byte, 1),
-		bEncoded:   make([]byte, 1),
+		bRead:      make([]byte, 1048576),
+		bDecoded:   make([]byte, 1048576),
+		bMarshaled: make([]byte, 1048576),
+		bEncoded:   make([]byte, 1048576),
 	}
 }
 

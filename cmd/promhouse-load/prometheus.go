@@ -51,7 +51,7 @@ type prometheusClient struct {
 	currentTS            int
 }
 
-func newPrometheusClient(base string, start, end time.Time, step time.Duration) (*prometheusClient, error) {
+func newPrometheusClient(base string, start, end time.Time, step time.Duration, maxTS int) (*prometheusClient, error) {
 	u, err := url.Parse(base)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -63,8 +63,8 @@ func newPrometheusClient(base string, start, end time.Time, step time.Duration) 
 		l:           logrus.WithField("client", "prometheus"),
 		client:      new(http.Client),
 		readURL:     u.String(),
-		bRead:       make([]byte, 65536),
-		bDecoded:    make([]byte, 65536),
+		bRead:       make([]byte, 1048576),
+		bDecoded:    make([]byte, 1048576),
 		bMarshaled:  make([]byte, 1024),
 		bEncoded:    make([]byte, 1024),
 		start:       start,
@@ -99,10 +99,11 @@ func newPrometheusClient(base string, start, end time.Time, step time.Duration) 
 	}
 	pc.ts = res.Data
 	pc.l.Infof("Got %d time series.", len(pc.ts))
+	if maxTS > 0 {
+		pc.ts = pc.ts[:maxTS]
+	}
 
-	// FIXME remove
-	pc.ts = pc.ts[:250]
-
+	pc.l.Infof("Reading %d time series between %s and %s in %s intervals.", len(pc.ts), pc.start, pc.end, pc.step)
 	return pc, nil
 }
 

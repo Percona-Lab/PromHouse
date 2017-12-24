@@ -63,7 +63,7 @@ func (fc *fileClient) readTS() (*prompb.TimeSeries, error) {
 		if fc.fSize != 0 {
 			offset, err := fc.f.Seek(0, 1)
 			if err == nil {
-				fc.l.Infof("Read %.2f%% of the file.", float64(offset)/float64(fc.fSize))
+				fc.l.Infof("Read %.2f%% of the file.", float64(offset*100)/float64(fc.fSize))
 			}
 		}
 	}

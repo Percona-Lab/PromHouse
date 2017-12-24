@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -29,23 +30,50 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
+	"github.com/pkg/errors"
 	"github.com/prometheus/common/model"
+	"github.com/sirupsen/logrus"
 
 	"github.com/Percona-Lab/PromHouse/prompb"
 )
 
 type prometheusClient struct {
-	base   string
-	client *http.Client
+	l                    *logrus.Entry
+	client               *http.Client
+	readURL              string
+	bRead, bDecoded      []byte
+	bMarshaled, bEncoded []byte
+	start                time.Time
+	end                  time.Time
+	step                 time.Duration
+	currentTime          time.Time
+	ts                   []map[string]string
+	currentTS            int
 }
 
-// requestTimeSeries requests all time series (label sets, without samples) from Prometheus via API.
-func (pc *prometheusClient) requestTimeSeries(start, end time.Time) ([]map[string]string, error) {
-	u, err := url.Parse(pc.base)
+func newPrometheusClient(base string, start, end time.Time, step time.Duration) (*prometheusClient, error) {
+	u, err := url.Parse(base)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
-	u.Path = path.Join(u.Path, "/api/v1/series")
+	basePath := u.Path
+
+	u.Path = path.Join(basePath, "/api/v1/read")
+	pc := &prometheusClient{
+		l:           logrus.WithField("client", "prometheus"),
+		client:      new(http.Client),
+		readURL:     u.String(),
+		bRead:       make([]byte, 65536),
+		bDecoded:    make([]byte, 65536),
+		bMarshaled:  make([]byte, 1024),
+		bEncoded:    make([]byte, 1024),
+		start:       start,
+		end:         end,
+		step:        step,
+		currentTime: start,
+	}
+
+	u.Path = path.Join(basePath, "/api/v1/series")
 	v := make(url.Values)
 	v.Set(`match[]`, `{__name__!=""}`)
 	v.Set(`start`, strconv.FormatInt(start.Unix(), 10))
@@ -54,32 +82,41 @@ func (pc *prometheusClient) requestTimeSeries(start, end time.Time) ([]map[strin
 
 	resp, err := pc.client.Get(u.String())
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
 		b, _ := ioutil.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected response code %d: %s", resp.StatusCode, b)
+		return nil, errors.Errorf("unexpected response code %d: %s", resp.StatusCode, b)
 	}
 
 	var res struct {
 		Data []map[string]string
 	}
 	if err = json.NewDecoder(resp.Body).Decode(&res); err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
-	return res.Data, nil
+	pc.ts = res.Data
+	pc.l.Infof("Got %d time series.", len(pc.ts))
+
+	// FIXME remove
+	pc.ts = pc.ts[:250]
+
+	return pc, nil
 }
 
-// requestMetrics requests all samples for a given time series from Prometheus via API.
-func (pc *prometheusClient) requestMetrics(start, end time.Time, ts map[string]string) (*prompb.TimeSeries, error) {
-	u, err := url.Parse(pc.base)
-	if err != nil {
-		return nil, err
+func (pc *prometheusClient) readTS() (*prompb.TimeSeries, error) {
+	if pc.currentTime.Equal(pc.end) {
+		pc.currentTime = pc.start
+		pc.currentTS++
+		pc.l.Infof("Read %d time series out of %d.", pc.currentTS, len(pc.ts))
+		if pc.currentTS == len(pc.ts) {
+			return nil, io.EOF
+		}
 	}
-	u.Path = path.Join(u.Path, "/api/v1/read")
 
+	ts := pc.ts[pc.currentTS]
 	matchers := make([]*prompb.LabelMatcher, 0, len(ts))
 	for n, v := range ts {
 		matchers = append(matchers, &prompb.LabelMatcher{
@@ -88,6 +125,13 @@ func (pc *prometheusClient) requestMetrics(start, end time.Time, ts map[string]s
 			Value: v,
 		})
 	}
+
+	start := pc.currentTime
+	end := start.Add(pc.step)
+	if end.After(pc.end) {
+		end = pc.end
+	}
+	pc.currentTime = end
 	request := prompb.ReadRequest{
 		Queries: []*prompb.Query{{
 			StartTimestampMs: int64(model.TimeFromUnixNano(start.UnixNano())),
@@ -95,13 +139,26 @@ func (pc *prometheusClient) requestMetrics(start, end time.Time, ts map[string]s
 			Matchers:         matchers,
 		}},
 	}
+	pc.l.Debugf("Request: %s", request)
 
-	b, err := proto.Marshal(&request)
-	if err != nil {
-		return nil, err
+	// marshal request reusing bMarshaled
+	var err error
+	size := request.Size()
+	if cap(pc.bMarshaled) >= size {
+		pc.bMarshaled = pc.bMarshaled[:size]
+	} else {
+		pc.bMarshaled = make([]byte, size)
 	}
-	b = snappy.Encode(nil, b)
-	req, err := http.NewRequest("POST", u.String(), bytes.NewReader(b))
+	size, err = request.MarshalTo(pc.bMarshaled)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to marshal request")
+	}
+
+	// encode request reusing bEncoded
+	pc.bEncoded = pc.bEncoded[:cap(pc.bEncoded)]
+	pc.bEncoded = snappy.Encode(pc.bEncoded, pc.bMarshaled[:size])
+
+	req, err := http.NewRequest("POST", pc.readURL, bytes.NewReader(pc.bEncoded))
 	if err != nil {
 		return nil, err
 	}
@@ -113,23 +170,36 @@ func (pc *prometheusClient) requestMetrics(start, end time.Time, ts map[string]s
 		return nil, err
 	}
 	defer resp.Body.Close()
-	if b, err = ioutil.ReadAll(resp.Body); err != nil {
+
+	// read response reusing bRead
+	buf := bytes.NewBuffer(pc.bRead[:0])
+	if _, err = buf.ReadFrom(resp.Body); err != nil {
 		return nil, err
 	}
+	pc.bRead = buf.Bytes()
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("unexpected response code %d: %s", resp.StatusCode, b)
+		return nil, fmt.Errorf("unexpected response code %d: %s", resp.StatusCode, pc.bRead)
 	}
 
-	if b, err = snappy.Decode(nil, b); err != nil {
+	// decode response reusing bDecoded
+	pc.bDecoded = pc.bDecoded[:cap(pc.bDecoded)]
+	pc.bDecoded, err = snappy.Decode(pc.bDecoded, pc.bRead)
+	if err != nil {
 		return nil, err
 	}
+
+	// unmarshal message
 	var response prompb.ReadResponse
-	if err = proto.Unmarshal(b, &response); err != nil {
+	if err = proto.Unmarshal(pc.bDecoded, &response); err != nil {
 		return nil, err
 	}
 	t := response.Results[0].TimeSeries
 	if len(t) != 1 {
 		return nil, fmt.Errorf("expected 1 time series, got %d", len(t))
 	}
+	pc.l.Debugf("Got %s with %d samples.", t[0].Labels, len(t[0].Samples))
 	return t[0], nil
 }
+
+// check interface
+var _ tsReader = (*prometheusClient)(nil)

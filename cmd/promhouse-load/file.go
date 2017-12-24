@@ -23,46 +23,88 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
+	"github.com/pkg/errors"
 
 	"github.com/Percona-Lab/PromHouse/prompb"
 )
 
 type fileClient struct {
-	f *os.File
+	f                    *os.File
+	bRead, bDecoded      []byte
+	bMarshaled, bEncoded []byte
 }
 
-func (fc *fileClient) read() (*prompb.TimeSeries, error) {
-	var size uint32
-	if err := binary.Read(fc.f, binary.BigEndian, size); err != nil {
-		return nil, err
+func newFileClient(f *os.File) *fileClient {
+	return &fileClient{
+		f:          f,
+		bRead:      make([]byte, 1),
+		bDecoded:   make([]byte, 1),
+		bMarshaled: make([]byte, 1),
+		bEncoded:   make([]byte, 1),
 	}
-	b := make([]byte, size)
-	if _, err := io.ReadFull(fc.f, b); err != nil {
-		return nil, err
+}
+
+func (fc *fileClient) readTS() (*prompb.TimeSeries, error) {
+	// read next message reusing bRead
+	var err error
+	var size uint32
+	if err = binary.Read(fc.f, binary.BigEndian, size); err != nil {
+		return nil, errors.Wrap(err, "failed to read message size")
+	}
+	if uint32(cap(fc.bRead)) >= size {
+		fc.bRead = fc.bRead[:size]
+	} else {
+		fc.bRead = make([]byte, size)
+	}
+	if _, err = io.ReadFull(fc.f, fc.bRead); err != nil {
+		return nil, errors.Wrap(err, "failed to read message")
 	}
 
-	b, err := snappy.Decode(nil, b)
+	// decode message reusing bDecoded
+	fc.bDecoded = fc.bDecoded[:cap(fc.bDecoded)]
+	fc.bDecoded, err = snappy.Decode(fc.bDecoded, fc.bRead)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to decode message")
 	}
+
+	// unmarshal message
 	var ts prompb.TimeSeries
-	if err = proto.Unmarshal(b, &ts); err != nil {
-		return nil, err
+	if err = proto.Unmarshal(fc.bDecoded, &ts); err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal message")
 	}
 	return &ts, nil
 }
 
-func (fc *fileClient) write(ts *prompb.TimeSeries) error {
-	b, err := proto.Marshal(ts)
+func (fc *fileClient) writeTS(ts *prompb.TimeSeries) error {
+	// marshal message reusing bMarshaled
+	var err error
+	size := ts.Size()
+	if cap(fc.bMarshaled) >= size {
+		fc.bMarshaled = fc.bMarshaled[:size]
+	} else {
+		fc.bMarshaled = make([]byte, size)
+	}
+	size, err = ts.MarshalTo(fc.bMarshaled)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to marshal message")
 	}
-	b = snappy.Encode(nil, b)
 
-	size := uint32(len(b))
-	if err = binary.Write(fc.f, binary.BigEndian, size); err != nil {
-		return err
+	// encode message reusing bEncoded
+	fc.bEncoded = fc.bEncoded[:cap(fc.bEncoded)]
+	fc.bEncoded = snappy.Encode(fc.bEncoded, fc.bMarshaled[:size])
+
+	// write message
+	if err = binary.Write(fc.f, binary.BigEndian, uint32(len(fc.bEncoded))); err != nil {
+		return errors.Wrap(err, "failed to write message length")
 	}
-	_, err = fc.f.Write(b)
-	return err
+	if _, err = fc.f.Write(fc.bEncoded); err != nil {
+		return errors.Wrap(err, "failed to write message")
+	}
+	return nil
 }
+
+// check interfaces
+var (
+	_ tsReader = (*fileClient)(nil)
+	_ tsWriter = (*fileClient)(nil)
+)

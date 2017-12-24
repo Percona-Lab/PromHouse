@@ -31,7 +31,7 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/sirupsen/logrus"
 
-	prompb "github.com/Percona-Lab/PromHouse/prompb"
+	"github.com/Percona-Lab/PromHouse/prompb"
 )
 
 const (

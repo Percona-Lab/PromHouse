@@ -126,7 +126,9 @@ func main() {
 				close(ch)
 				return
 			}
-			ch <- ts
+			if ts != nil {
+				ch <- ts
+			}
 		}
 	}()
 

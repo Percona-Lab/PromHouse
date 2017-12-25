@@ -197,11 +197,17 @@ func (pc *prometheusClient) readTS() (*prompb.TimeSeries, error) {
 		return nil, err
 	}
 	t := response.Results[0].TimeSeries
-	if len(t) != 1 {
-		return nil, errors.Errorf("expected 1 time series, got %d", len(t))
+	l := len(t)
+	switch l {
+	case 0:
+		pc.l.Warnf("Got nothing for request %s.", request)
+		return nil, nil
+	case 1:
+		pc.l.Debugf("Got %s with %d samples.", t[0].Labels, len(t[0].Samples))
+		return t[0], nil
+	default:
+		return nil, errors.Errorf("expected 0 or 1 time series, got %d", l)
 	}
-	pc.l.Debugf("Got %s with %d samples.", t[0].Labels, len(t[0].Samples))
-	return t[0], nil
 }
 
 // check interface

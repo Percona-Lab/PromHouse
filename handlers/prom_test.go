@@ -31,7 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Percona-Lab/PromHouse/prompb"
-	"github.com/Percona-Lab/PromHouse/storages"
+	"github.com/Percona-Lab/PromHouse/storages/blackhole"
 )
 
 func getWriteRequest() *prompb.WriteRequest {
@@ -87,7 +87,7 @@ func getWriteRequest() *prompb.WriteRequest {
 
 func TestWrite(t *testing.T) {
 	h := PromAPI{
-		Storage: new(storages.Blackhole),
+		Storage: blackhole.New(),
 		Logger: logrus.NewEntry(&logrus.Logger{
 			Level: logrus.FatalLevel,
 		}),
@@ -103,7 +103,7 @@ func TestWrite(t *testing.T) {
 
 func BenchmarkWrite(b *testing.B) {
 	h := PromAPI{
-		Storage: new(storages.Blackhole),
+		Storage: blackhole.New(),
 		Logger: logrus.NewEntry(&logrus.Logger{
 			Level: logrus.FatalLevel,
 		}),

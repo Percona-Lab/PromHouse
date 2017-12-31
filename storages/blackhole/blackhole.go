@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-package storages
+package blackhole
 
 import (
 	"context"
@@ -25,26 +25,26 @@ import (
 	"github.com/Percona-Lab/PromHouse/storages/base"
 )
 
-// Blackhole is a non-functional dummy storage for testing.
-type Blackhole struct{}
+// blackhole is a non-functional dummy storage for testing.
+type blackhole struct{}
 
-func NewBlackhole() *Blackhole {
-	return new(Blackhole)
+func New() base.Storage {
+	return new(blackhole)
 }
 
-func (m *Blackhole) Describe(c chan<- *prometheus.Desc) {
+func (m *blackhole) Describe(c chan<- *prometheus.Desc) {
 }
 
-func (m *Blackhole) Collect(c chan<- prometheus.Metric) {
+func (m *blackhole) Collect(c chan<- prometheus.Metric) {
 }
 
-func (m *Blackhole) Read(ctx context.Context, queries []base.Query) (*prompb.ReadResponse, error) {
+func (m *blackhole) Read(ctx context.Context, queries []base.Query) (*prompb.ReadResponse, error) {
 	return nil, nil
 }
 
-func (m *Blackhole) Write(ctx context.Context, data *prompb.WriteRequest) error {
+func (m *blackhole) Write(ctx context.Context, data *prompb.WriteRequest) error {
 	return nil
 }
 
 // check interface
-var _ base.Storage = (*Blackhole)(nil)
+var _ base.Storage = (*blackhole)(nil)

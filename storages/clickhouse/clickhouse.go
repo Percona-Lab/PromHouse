@@ -74,7 +74,6 @@ func New(dsn string, database string, drop bool) (base.Storage, error) {
 	}
 	queries = append(queries, fmt.Sprintf(`CREATE DATABASE IF NOT EXISTS %s`, database))
 
-	// TODO use GraphiteMergeTree?
 	// change sampleRowSize is you change this table
 	queries = append(queries, fmt.Sprintf(`
 		CREATE TABLE IF NOT EXISTS %s.samples (

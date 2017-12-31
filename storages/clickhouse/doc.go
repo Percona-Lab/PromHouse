@@ -14,5 +14,5 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-// Package storages contains storage functional tests.
-package storages
+// Package clickhouse provides ClickHouse storage.
+package clickhouse

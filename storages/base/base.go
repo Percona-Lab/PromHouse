@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-package storages
+package base
 
 import (
 	"context"
@@ -161,8 +161,8 @@ func (ms Matchers) MatchLabels(labels []*prompb.Label) bool {
 	return true
 }
 
-// sortLabels sorts labels by name.
-func sortLabels(labels []*prompb.Label) {
+// SortLabels sorts labels by name.
+func SortLabels(labels []*prompb.Label) {
 	sort.Slice(labels, func(i, j int) bool { return labels[i].Name < labels[j].Name })
 }
 

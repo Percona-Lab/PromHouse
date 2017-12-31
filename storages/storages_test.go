@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Percona-Lab/PromHouse/prompb"
+	"github.com/Percona-Lab/PromHouse/storages/base"
 )
 
 func getData() *prompb.WriteRequest {
@@ -102,8 +103,8 @@ func sortTimeSeries(timeSeries []*prompb.TimeSeries) {
 			return nameI < nameJ
 		}
 
-		sortLabels(timeSeries[i].Labels)
-		sortLabels(timeSeries[j].Labels)
+		base.SortLabels(timeSeries[i].Labels)
+		base.SortLabels(timeSeries[j].Labels)
 		return fingerprint(timeSeries[i].Labels) < fingerprint(timeSeries[j].Labels)
 	})
 }
@@ -136,11 +137,11 @@ func TestStorages(t *testing.T) {
 	// logrus.SetLevel(logrus.DebugLevel)
 	// defer logrus.SetLevel(level)
 
-	for storageName, newStorage := range map[string]func() (Storage, error){
-		"Memory": func() (Storage, error) {
+	for storageName, newStorage := range map[string]func() (base.Storage, error){
+		"Memory": func() (base.Storage, error) {
 			return NewMemory(), nil
 		},
-		"ClickHouse": func() (Storage, error) {
+		"ClickHouse": func() (base.Storage, error) {
 			return NewClickHouse("tcp://127.0.0.1:9000", "prometheus_test", true)
 		},
 	} {
@@ -161,34 +162,34 @@ func TestStorages(t *testing.T) {
 
 				t.Run("ByName", func(t *testing.T) {
 					// queries returning all data
-					for _, q := range []Query{
+					for _, q := range []base.Query{
 						{
 							Start: start,
 							End:   end,
-							Matchers: []Matcher{{
+							Matchers: []base.Matcher{{
 								Name:  "__name__",
-								Type:  MatchEqual,
+								Type:  base.MatchEqual,
 								Value: "http_requests_total",
 							}},
 						},
 						{
 							Start: start,
 							End:   end,
-							Matchers: []Matcher{{
+							Matchers: []base.Matcher{{
 								Name:  "__name__",
-								Type:  MatchNotEqual,
+								Type:  base.MatchNotEqual,
 								Value: "no_such_metric",
 							}},
 						},
 					} {
 						t.Run(q.String(), func(t *testing.T) {
-							data, err := storage.Read(context.Background(), []Query{q})
+							data, err := storage.Read(context.Background(), []base.Query{q})
 							require.NoError(t, err)
 							require.Len(t, data.Results, 1)
 							require.Len(t, data.Results[0].TimeSeries, 3)
 							sortTimeSeries(data.Results[0].TimeSeries)
 							for i, actual := range data.Results[0].TimeSeries {
-								sortLabels(actual.Labels)
+								base.SortLabels(actual.Labels)
 								expected := storedData.TimeSeries[i]
 								assert.Equal(t, expected, actual, messageTS(expected, actual))
 							}
@@ -196,37 +197,37 @@ func TestStorages(t *testing.T) {
 					}
 
 					// queries returning nothing
-					for _, q := range []Query{
+					for _, q := range []base.Query{
 						{
 							Start: start,
 							End:   end,
-							Matchers: []Matcher{{
+							Matchers: []base.Matcher{{
 								Name:  "__name__",
-								Type:  MatchEqual,
+								Type:  base.MatchEqual,
 								Value: "no_such_metric",
 							}},
 						},
 						{ // TODO should it return 3 series with 0 values, or 0 values?
 							Start: 0,
 							End:   0,
-							Matchers: []Matcher{{
+							Matchers: []base.Matcher{{
 								Name:  "__name__",
-								Type:  MatchEqual,
+								Type:  base.MatchEqual,
 								Value: "http_requests_total",
 							}},
 						},
 						{
 							Start: start,
 							End:   end,
-							Matchers: []Matcher{{
+							Matchers: []base.Matcher{{
 								Name:  "__name__",
-								Type:  MatchNotEqual,
+								Type:  base.MatchNotEqual,
 								Value: "http_requests_total",
 							}},
 						},
 					} {
 						t.Run(q.String(), func(t *testing.T) {
-							data, err := storage.Read(context.Background(), []Query{q})
+							data, err := storage.Read(context.Background(), []base.Query{q})
 							require.NoError(t, err)
 							require.Len(t, data.Results, 1)
 							require.Len(t, data.Results[0].TimeSeries, 0)
@@ -236,34 +237,34 @@ func TestStorages(t *testing.T) {
 
 				t.Run("ByNameRegexp", func(t *testing.T) {
 					// queries returning all data
-					for _, q := range []Query{
+					for _, q := range []base.Query{
 						{
 							Start: start,
 							End:   end,
-							Matchers: []Matcher{{
+							Matchers: []base.Matcher{{
 								Name:  "__name__",
-								Type:  MatchRegexp,
+								Type:  base.MatchRegexp,
 								Value: "http_requests_.+",
 							}},
 						},
 						{
 							Start: start,
 							End:   end,
-							Matchers: []Matcher{{
+							Matchers: []base.Matcher{{
 								Name:  "__name__",
-								Type:  MatchNotRegexp,
+								Type:  base.MatchNotRegexp,
 								Value: "_requests_",
 							}},
 						},
 					} {
 						t.Run(q.String(), func(t *testing.T) {
-							data, err := storage.Read(context.Background(), []Query{q})
+							data, err := storage.Read(context.Background(), []base.Query{q})
 							require.NoError(t, err)
 							require.Len(t, data.Results, 1)
 							require.Len(t, data.Results[0].TimeSeries, 3)
 							sortTimeSeries(data.Results[0].TimeSeries)
 							for i, actual := range data.Results[0].TimeSeries {
-								sortLabels(actual.Labels)
+								base.SortLabels(actual.Labels)
 								expected := storedData.TimeSeries[i]
 								assert.Equal(t, expected, actual, messageTS(expected, actual))
 							}
@@ -271,37 +272,37 @@ func TestStorages(t *testing.T) {
 					}
 
 					// queries returning nothing
-					for _, q := range []Query{
+					for _, q := range []base.Query{
 						{
 							Start: start,
 							End:   end,
-							Matchers: []Matcher{{
+							Matchers: []base.Matcher{{
 								Name:  "__name__",
-								Type:  MatchRegexp,
+								Type:  base.MatchRegexp,
 								Value: "_requests_",
 							}},
 						},
 						{ // TODO should it return 3 series with 0 values, or 0 values?
 							Start: 0,
 							End:   0,
-							Matchers: []Matcher{{
+							Matchers: []base.Matcher{{
 								Name:  "__name__",
-								Type:  MatchRegexp,
+								Type:  base.MatchRegexp,
 								Value: "http_requests_.+",
 							}},
 						},
 						{
 							Start: start,
 							End:   end,
-							Matchers: []Matcher{{
+							Matchers: []base.Matcher{{
 								Name:  "__name__",
-								Type:  MatchNotRegexp,
+								Type:  base.MatchNotRegexp,
 								Value: "http_requests_.+",
 							}},
 						},
 					} {
 						t.Run(q.String(), func(t *testing.T) {
-							data, err := storage.Read(context.Background(), []Query{q})
+							data, err := storage.Read(context.Background(), []base.Query{q})
 							require.NoError(t, err)
 							require.Len(t, data.Results, 1)
 							require.Len(t, data.Results[0].TimeSeries, 0)
@@ -310,19 +311,19 @@ func TestStorages(t *testing.T) {
 				})
 
 				t.Run("ByNonExistingLabel", func(t *testing.T) {
-					for _, q := range []Query{
+					for _, q := range []base.Query{
 						{
 							Start: start,
 							End:   end,
-							Matchers: []Matcher{{
+							Matchers: []base.Matcher{{
 								Name:  "no_such_label",
-								Type:  MatchEqual,
+								Type:  base.MatchEqual,
 								Value: "query",
 							}},
 						},
 					} {
 						t.Run(q.String(), func(t *testing.T) {
-							data, err := storage.Read(context.Background(), []Query{q})
+							data, err := storage.Read(context.Background(), []base.Query{q})
 							require.NoError(t, err)
 							require.Len(t, data.Results, 1)
 							require.Len(t, data.Results[0].TimeSeries, 0)
@@ -331,59 +332,59 @@ func TestStorages(t *testing.T) {
 				})
 
 				t.Run("BySeveralMatchers", func(t *testing.T) {
-					for _, q := range []Query{
+					for _, q := range []base.Query{
 						{
 							Start: start,
 							End:   end,
-							Matchers: []Matcher{{
+							Matchers: []base.Matcher{{
 								Name:  "__name__",
-								Type:  MatchEqual,
+								Type:  base.MatchEqual,
 								Value: "http_requests_total",
 							}, {
 								Name:  "no_such_label",
-								Type:  MatchNotEqual,
+								Type:  base.MatchNotEqual,
 								Value: "no_such_value",
 							}},
 						},
 						{
 							Start: start,
 							End:   end,
-							Matchers: []Matcher{{
+							Matchers: []base.Matcher{{
 								Name:  "no_such_label",
-								Type:  MatchNotEqual,
+								Type:  base.MatchNotEqual,
 								Value: "no_such_value",
 							}, {
 								Name:  "__name__",
-								Type:  MatchEqual,
+								Type:  base.MatchEqual,
 								Value: "http_requests_total",
 							}},
 						},
 						{
 							Start: start,
 							End:   end,
-							Matchers: []Matcher{{
+							Matchers: []base.Matcher{{
 								Name:  "no_such_label",
-								Type:  MatchNotEqual,
+								Type:  base.MatchNotEqual,
 								Value: "no_such_value",
 							}, {
 								Name:  "no_this_label",
-								Type:  MatchEqual,
+								Type:  base.MatchEqual,
 								Value: "",
 							}, {
 								Name:  "__name__",
-								Type:  MatchEqual,
+								Type:  base.MatchEqual,
 								Value: "http_requests_total",
 							}},
 						},
 					} {
 						t.Run(q.String(), func(t *testing.T) {
-							data, err := storage.Read(context.Background(), []Query{q})
+							data, err := storage.Read(context.Background(), []base.Query{q})
 							require.NoError(t, err)
 							require.Len(t, data.Results, 1)
 							require.Len(t, data.Results[0].TimeSeries, 3)
 							sortTimeSeries(data.Results[0].TimeSeries)
 							for i, actual := range data.Results[0].TimeSeries {
-								sortLabels(actual.Labels)
+								base.SortLabels(actual.Labels)
 								expected := storedData.TimeSeries[i]
 								assert.Equal(t, expected, actual, messageTS(expected, actual))
 							}
@@ -393,23 +394,23 @@ func TestStorages(t *testing.T) {
 
 				if storageName == "ClickHouse" {
 					t.Run("ByRawSQL", func(t *testing.T) {
-						for _, q := range []Query{
+						for _, q := range []base.Query{
 							{
 								Start: start,
 								End:   end,
-								Matchers: []Matcher{{
+								Matchers: []base.Matcher{{
 									Name:  "job",
-									Type:  MatchEqual,
+									Type:  base.MatchEqual,
 									Value: "rawsql",
 								}, {
 									Name:  "query",
-									Type:  MatchEqual,
+									Type:  base.MatchEqual,
 									Value: "SELECT * FROM samples ORDER BY fingerprint",
 								}},
 							},
 						} {
 							t.Run(q.String(), func(t *testing.T) {
-								data, err := storage.Read(context.Background(), []Query{q})
+								data, err := storage.Read(context.Background(), []base.Query{q})
 								require.NoError(t, err)
 								require.Len(t, data.Results, 1)
 
@@ -438,23 +439,23 @@ func TestStorages(t *testing.T) {
 				}
 				require.NoError(t, storage.Write(context.Background(), storedData))
 
-				q := Query{
+				q := base.Query{
 					Start: start,
 					End:   end,
-					Matchers: []Matcher{{
+					Matchers: []base.Matcher{{
 						Name:  "__name__",
-						Type:  MatchRegexp,
+						Type:  base.MatchRegexp,
 						Value: "funny_.+",
 					}},
 				}
 
-				data, err := storage.Read(context.Background(), []Query{q})
+				data, err := storage.Read(context.Background(), []base.Query{q})
 				require.NoError(t, err)
 				require.Len(t, data.Results, 1)
 				require.Len(t, data.Results[0].TimeSeries, len(storedData.TimeSeries))
 				sortTimeSeries(data.Results[0].TimeSeries)
 				for i, actual := range data.Results[0].TimeSeries {
-					sortLabels(actual.Labels)
+					base.SortLabels(actual.Labels)
 					expected := storedData.TimeSeries[i]
 					assert.Equal(t, expected, actual, messageTS(expected, actual))
 				}
@@ -494,9 +495,9 @@ func TestStorages(t *testing.T) {
 }
 
 func BenchmarkStorages(b *testing.B) {
-	for storageName, newStorage := range map[string]func() (Storage, error){
-		"Memory":     func() (Storage, error) { return NewMemory(), nil },
-		"ClickHouse": func() (Storage, error) { return NewClickHouse("tcp://127.0.0.1:9000", "prometheus_test", true) },
+	for storageName, newStorage := range map[string]func() (base.Storage, error){
+		"Memory":     func() (base.Storage, error) { return NewMemory(), nil },
+		"ClickHouse": func() (base.Storage, error) { return NewClickHouse("tcp://127.0.0.1:9000", "prometheus_test", true) },
 	} {
 		b.Run(storageName, func(b *testing.B) {
 			storedData := getData()

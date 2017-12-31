@@ -28,11 +28,11 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/Percona-Lab/PromHouse/prompb"
-	"github.com/Percona-Lab/PromHouse/storages"
+	"github.com/Percona-Lab/PromHouse/storages/base"
 )
 
 type PromAPI struct {
-	Storage storages.Storage
+	Storage base.Storage
 	Logger  *logrus.Entry
 }
 
@@ -61,31 +61,31 @@ func readPB(req *http.Request, pb proto.Message) error {
 	return err
 }
 
-func (p *PromAPI) convertReadRequest(request *prompb.ReadRequest) []storages.Query {
-	queries := make([]storages.Query, len(request.Queries))
+func (p *PromAPI) convertReadRequest(request *prompb.ReadRequest) []base.Query {
+	queries := make([]base.Query, len(request.Queries))
 	for i, rq := range request.Queries {
-		q := storages.Query{
+		q := base.Query{
 			Start:    model.Time(rq.StartTimestampMs),
 			End:      model.Time(rq.EndTimestampMs),
-			Matchers: make([]storages.Matcher, len(rq.Matchers)),
+			Matchers: make([]base.Matcher, len(rq.Matchers)),
 		}
 
 		for j, m := range rq.Matchers {
-			var t storages.MatchType
+			var t base.MatchType
 			switch m.Type {
 			case prompb.LabelMatcher_EQ:
-				t = storages.MatchEqual
+				t = base.MatchEqual
 			case prompb.LabelMatcher_NEQ:
-				t = storages.MatchNotEqual
+				t = base.MatchNotEqual
 			case prompb.LabelMatcher_RE:
-				t = storages.MatchRegexp
+				t = base.MatchRegexp
 			case prompb.LabelMatcher_NRE:
-				t = storages.MatchNotRegexp
+				t = base.MatchNotRegexp
 			default:
 				p.Logger.Panicf("expectation failed: unexpected matcher %d", m.Type)
 			}
 
-			q.Matchers[j] = storages.Matcher{
+			q.Matchers[j] = base.Matcher{
 				Type:  t,
 				Name:  m.Name,
 				Value: m.Value,

@@ -24,6 +24,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/Percona-Lab/PromHouse/prompb"
+	"github.com/Percona-Lab/PromHouse/storages/base"
 )
 
 // Memory is a functional dummy storage for testing.
@@ -46,7 +47,7 @@ func (m *Memory) Describe(c chan<- *prometheus.Desc) {
 func (m *Memory) Collect(c chan<- prometheus.Metric) {
 }
 
-func (m *Memory) Read(ctx context.Context, queries []Query) (*prompb.ReadResponse, error) {
+func (m *Memory) Read(ctx context.Context, queries []base.Query) (*prompb.ReadResponse, error) {
 	m.rw.RLock()
 	defer m.rw.RUnlock()
 
@@ -96,7 +97,7 @@ func (m *Memory) Write(ctx context.Context, data *prompb.WriteRequest) error {
 	}
 
 	for _, ts := range data.TimeSeries {
-		sortLabels(ts.Labels)
+		base.SortLabels(ts.Labels)
 		f := fingerprint(ts.Labels)
 		m.metrics[f] = ts.Labels
 
@@ -113,4 +114,4 @@ func (m *Memory) Write(ctx context.Context, data *prompb.WriteRequest) error {
 }
 
 // check interface
-var _ Storage = (*Memory)(nil)
+var _ base.Storage = (*Memory)(nil)

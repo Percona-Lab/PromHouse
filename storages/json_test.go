@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Percona-Lab/PromHouse/prompb"
+	"github.com/Percona-Lab/PromHouse/storages/base"
 )
 
 func TestMarshalMetricsAndLabels(t *testing.T) {
@@ -67,8 +68,8 @@ func TestMarshalMetricsAndLabels(t *testing.T) {
 		require.NoError(t, err)
 		l2, err := unmarshalLabels(b2)
 		require.NoError(t, err)
-		sortLabels(l1)
-		sortLabels(l2)
+		base.SortLabels(l1)
+		base.SortLabels(l2)
 		assert.Equal(t, labels, l1)
 		assert.Equal(t, labels, l2)
 	}

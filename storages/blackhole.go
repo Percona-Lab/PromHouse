@@ -22,6 +22,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/Percona-Lab/PromHouse/prompb"
+	"github.com/Percona-Lab/PromHouse/storages/base"
 )
 
 // Blackhole is a non-functional dummy storage for testing.
@@ -37,7 +38,7 @@ func (m *Blackhole) Describe(c chan<- *prometheus.Desc) {
 func (m *Blackhole) Collect(c chan<- prometheus.Metric) {
 }
 
-func (m *Blackhole) Read(ctx context.Context, queries []Query) (*prompb.ReadResponse, error) {
+func (m *Blackhole) Read(ctx context.Context, queries []base.Query) (*prompb.ReadResponse, error) {
 	return nil, nil
 }
 
@@ -46,4 +47,4 @@ func (m *Blackhole) Write(ctx context.Context, data *prompb.WriteRequest) error 
 }
 
 // check interface
-var _ Storage = (*Blackhole)(nil)
+var _ base.Storage = (*Blackhole)(nil)

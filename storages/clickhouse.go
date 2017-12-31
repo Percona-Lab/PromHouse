@@ -32,6 +32,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/Percona-Lab/PromHouse/prompb"
+	"github.com/Percona-Lab/PromHouse/storages/base"
 )
 
 const (
@@ -325,7 +326,7 @@ func (ch *ClickHouse) Collect(c chan<- prometheus.Metric) {
 	ch.mWrittenSamples.Collect(c)
 }
 
-func (ch *ClickHouse) Read(ctx context.Context, queries []Query) (res *prompb.ReadResponse, err error) {
+func (ch *ClickHouse) Read(ctx context.Context, queries []base.Query) (res *prompb.ReadResponse, err error) {
 	// track time and response status
 	start := time.Now()
 	defer func() {
@@ -346,10 +347,10 @@ func (ch *ClickHouse) Read(ctx context.Context, queries []Query) (res *prompb.Re
 		var query string
 		var hasJob bool
 		for _, m := range queries[0].Matchers {
-			if m.Type == MatchEqual && m.Name == "job" && m.Value == "rawsql" {
+			if m.Type == base.MatchEqual && m.Name == "job" && m.Value == "rawsql" {
 				hasJob = true
 			}
-			if m.Type == MatchEqual && m.Name == "query" {
+			if m.Type == base.MatchEqual && m.Name == "query" {
 				query = m.Value
 			}
 		}
@@ -474,7 +475,7 @@ func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 	fingerprints := make([]uint64, len(data.TimeSeries))
 	timeSeries := make(map[uint64][]*prompb.Label, len(data.TimeSeries))
 	for i, ts := range data.TimeSeries {
-		sortLabels(ts.Labels)
+		base.SortLabels(ts.Labels)
 		f := fingerprint(ts.Labels)
 		fingerprints[i] = f
 		timeSeries[f] = ts.Labels
@@ -560,4 +561,4 @@ func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 }
 
 // check interface
-var _ Storage = (*ClickHouse)(nil)
+var _ base.Storage = (*ClickHouse)(nil)

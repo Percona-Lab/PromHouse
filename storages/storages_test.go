@@ -30,58 +30,8 @@ import (
 
 	"github.com/Percona-Lab/PromHouse/prompb"
 	"github.com/Percona-Lab/PromHouse/storages/base"
+	"github.com/Percona-Lab/PromHouse/storages/test"
 )
-
-func getData() *prompb.WriteRequest {
-	start := model.Now().Add(-6 * time.Second)
-
-	return &prompb.WriteRequest{
-		TimeSeries: []*prompb.TimeSeries{
-			{
-				Labels: []*prompb.Label{
-					{Name: "__name__", Value: "http_requests_total"},
-					{Name: "code", Value: "200"},
-					{Name: "handler", Value: "query"},
-				},
-				Samples: []*prompb.Sample{
-					{Value: 13, TimestampMs: int64(start)},
-					{Value: 14, TimestampMs: int64(start.Add(1 * time.Second))},
-					{Value: 14, TimestampMs: int64(start.Add(2 * time.Second))},
-					{Value: 14, TimestampMs: int64(start.Add(3 * time.Second))},
-					{Value: 15, TimestampMs: int64(start.Add(4 * time.Second))},
-				},
-			},
-			{
-				Labels: []*prompb.Label{
-					{Name: "__name__", Value: "http_requests_total"},
-					{Name: "code", Value: "400"},
-					{Name: "handler", Value: "query_range"},
-				},
-				Samples: []*prompb.Sample{
-					{Value: 9, TimestampMs: int64(start)},
-					{Value: 9, TimestampMs: int64(start.Add(1 * time.Second))},
-					{Value: 9, TimestampMs: int64(start.Add(2 * time.Second))},
-					{Value: 11, TimestampMs: int64(start.Add(3 * time.Second))},
-					{Value: 11, TimestampMs: int64(start.Add(4 * time.Second))},
-				},
-			},
-			{
-				Labels: []*prompb.Label{
-					{Name: "__name__", Value: "http_requests_total"},
-					{Name: "code", Value: "200"},
-					{Name: "handler", Value: "prometheus"},
-				},
-				Samples: []*prompb.Sample{
-					{Value: 591, TimestampMs: int64(start)},
-					{Value: 592, TimestampMs: int64(start.Add(1 * time.Second))},
-					{Value: 593, TimestampMs: int64(start.Add(2 * time.Second))},
-					{Value: 594, TimestampMs: int64(start.Add(3 * time.Second))},
-					{Value: 595, TimestampMs: int64(start.Add(4 * time.Second))},
-				},
-			},
-		},
-	}
-}
 
 // sortTimeSeries sorts timeseries by metric name and fingerprint.
 func sortTimeSeries(timeSeries []*prompb.TimeSeries) {
@@ -105,20 +55,12 @@ func sortTimeSeries(timeSeries []*prompb.TimeSeries) {
 
 		base.SortLabels(timeSeries[i].Labels)
 		base.SortLabels(timeSeries[j].Labels)
-		return fingerprint(timeSeries[i].Labels) < fingerprint(timeSeries[j].Labels)
+		return base.Fingerprint(timeSeries[i].Labels) < base.Fingerprint(timeSeries[j].Labels)
 	})
 }
 
-func makeMetric(labels []*prompb.Label) model.Metric {
-	metric := make(model.Metric, len(labels))
-	for _, l := range labels {
-		metric[model.LabelName(l.Name)] = model.LabelValue(l.Value)
-	}
-	return metric
-}
-
 func formatTS(ts *prompb.TimeSeries) string {
-	res := makeMetric(ts.Labels).String()
+	res := test.MakeMetric(ts.Labels).String()
 	for _, s := range ts.Samples {
 		res += "\n\t" + model.SamplePair{
 			Timestamp: model.Time(s.TimestampMs),
@@ -157,7 +99,7 @@ func TestStorages(t *testing.T) {
 			end := model.Now()
 
 			t.Run("Read", func(t *testing.T) {
-				storedData := getData()
+				storedData := test.GetData()
 				require.NoError(t, storage.Write(context.Background(), storedData))
 
 				t.Run("ByName", func(t *testing.T) {
@@ -500,7 +442,7 @@ func BenchmarkStorages(b *testing.B) {
 		"ClickHouse": func() (base.Storage, error) { return NewClickHouse("tcp://127.0.0.1:9000", "prometheus_test", true) },
 	} {
 		b.Run(storageName, func(b *testing.B) {
-			storedData := getData()
+			storedData := test.GetData()
 			storage, err := newStorage()
 			require.NoError(b, err)
 

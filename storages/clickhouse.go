@@ -476,7 +476,7 @@ func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 	timeSeries := make(map[uint64][]*prompb.Label, len(data.TimeSeries))
 	for i, ts := range data.TimeSeries {
 		base.SortLabels(ts.Labels)
-		f := fingerprint(ts.Labels)
+		f := base.Fingerprint(ts.Labels)
 		fingerprints[i] = f
 		timeSeries[f] = ts.Labels
 	}

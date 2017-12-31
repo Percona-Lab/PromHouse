@@ -98,7 +98,7 @@ func (m *Memory) Write(ctx context.Context, data *prompb.WriteRequest) error {
 
 	for _, ts := range data.TimeSeries {
 		base.SortLabels(ts.Labels)
-		f := fingerprint(ts.Labels)
+		f := base.Fingerprint(ts.Labels)
 		m.metrics[f] = ts.Labels
 
 		s := m.samples[f]

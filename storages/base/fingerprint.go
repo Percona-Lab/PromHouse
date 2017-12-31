@@ -32,7 +32,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package storages
+package base
 
 import (
 	"github.com/Percona-Lab/PromHouse/prompb"
@@ -60,9 +60,9 @@ func hashAddByte(h uint64, b byte) uint64 {
 	return h
 }
 
-// fingerprint calculates a fingerprint of SORTED BY NAME labels.
+// Fingerprint calculates a fingerprint of SORTED BY NAME labels.
 // It is adopted from labelSetToFingerprint, but avoids type conversions and memory allocations.
-func fingerprint(labels []*prompb.Label) uint64 {
+func Fingerprint(labels []*prompb.Label) uint64 {
 	if len(labels) == 0 {
 		return offset64
 	}

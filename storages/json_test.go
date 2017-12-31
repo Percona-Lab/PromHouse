@@ -26,6 +26,7 @@ import (
 
 	"github.com/Percona-Lab/PromHouse/prompb"
 	"github.com/Percona-Lab/PromHouse/storages/base"
+	"github.com/Percona-Lab/PromHouse/storages/test"
 )
 
 func TestMarshalMetricsAndLabels(t *testing.T) {
@@ -55,7 +56,7 @@ func TestMarshalMetricsAndLabels(t *testing.T) {
 		},
 	} {
 		b1 := marshalLabels(labels, nil)
-		b2, err := json.Marshal(makeMetric(labels))
+		b2, err := json.Marshal(test.MakeMetric(labels))
 		require.NoError(t, err)
 
 		m1 := make(model.Metric)
@@ -75,11 +76,19 @@ func TestMarshalMetricsAndLabels(t *testing.T) {
 	}
 }
 
-var sink []byte
+var (
+	sink []byte
+
+	labelsB = []*prompb.Label{
+		{Name: "__name__", Value: "http_requests_total"},
+		{Name: "code", Value: "200"},
+		{Name: "handler", Value: "query"},
+	}
+)
 
 func BenchmarkMarshalJSON(b *testing.B) {
 	var err error
-	metric := makeMetric(labelsB)
+	metric := test.MakeMetric(labelsB)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-package storages
+package base
 
 import (
 	"testing"
@@ -22,17 +22,18 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/Percona-Lab/PromHouse/prompb"
+	"github.com/Percona-Lab/PromHouse/storages/test"
 )
 
 func TestFingerprints(t *testing.T) {
 	// special case - zero labels
-	expected := uint64(makeMetric(nil).Fingerprint())
-	actual := fingerprint(nil)
+	expected := uint64(test.MakeMetric(nil).Fingerprint())
+	actual := Fingerprint(nil)
 	assert.Equal(t, expected, actual)
 
-	for _, ts := range getData().TimeSeries {
-		expected = uint64(makeMetric(ts.Labels).Fingerprint())
-		actual = fingerprint(ts.Labels)
+	for _, ts := range test.GetData().TimeSeries {
+		expected = uint64(test.MakeMetric(ts.Labels).Fingerprint())
+		actual = Fingerprint(ts.Labels)
 		assert.Equal(t, expected, actual)
 	}
 }
@@ -49,7 +50,7 @@ var (
 
 func BenchmarkOriginal(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		actualB = uint64(makeMetric(labelsB).Fingerprint())
+		actualB = uint64(test.MakeMetric(labelsB).Fingerprint())
 	}
 	b.StopTimer()
 	assert.Equal(b, expectedB, actualB)
@@ -57,7 +58,7 @@ func BenchmarkOriginal(b *testing.B) {
 
 func BenchmarkCopied(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		actualB = fingerprint(labelsB)
+		actualB = Fingerprint(labelsB)
 	}
 	b.StopTimer()
 	assert.Equal(b, expectedB, actualB)

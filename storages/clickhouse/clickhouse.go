@@ -40,7 +40,7 @@ const (
 	namespace = "promhouse"
 	subsystem = "clickhouse"
 
-	sampleRowSize = 2 + 8 + 8 + 8
+	sampleRowSize = 8 + 8 + 8
 )
 
 // clickHouse implements storage interface for the ClickHouse.
@@ -75,21 +75,26 @@ func New(dsn string, database string, drop bool) (base.Storage, error) {
 	}
 	queries = append(queries, fmt.Sprintf(`CREATE DATABASE IF NOT EXISTS %s`, database))
 
-	// change sampleRowSize is you change this table
-	queries = append(queries, fmt.Sprintf(`
-		CREATE TABLE IF NOT EXISTS %s.samples (
-			date Date,
-			fingerprint UInt64,
-			timestamp_ms Int64,
-			value Float64
-		) ENGINE = MergeTree(date, (fingerprint, timestamp_ms), 8192)`, database))
-
 	queries = append(queries, fmt.Sprintf(`
 		CREATE TABLE IF NOT EXISTS %s.time_series (
 			date Date,
 			fingerprint UInt64,
 			labels String
-		) ENGINE = ReplacingMergeTree(date, fingerprint, 8192)`, database))
+		)
+		ENGINE = ReplacingMergeTree
+			PARTITION BY date
+			ORDER BY fingerprint`, database))
+
+	// change sampleRowSize is you change this table
+	queries = append(queries, fmt.Sprintf(`
+		CREATE TABLE IF NOT EXISTS %s.samples (
+			fingerprint UInt64,
+			timestamp_ms Int64,
+			value Float64
+		)
+		ENGINE = MergeTree
+			PARTITION BY toDate(timestamp_ms / 1000)
+			ORDER BY (fingerprint, timestamp_ms)`, database))
 
 	// we can't use database in DSN if it doesn't yet exist, so handle that in a special way
 
@@ -524,20 +529,19 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 	// write samples
 	var samples int
 	err = inTransaction(ctx, ch.db, func(tx *sql.Tx) error {
-		query := fmt.Sprintf(`INSERT INTO %s.samples (date, fingerprint, timestamp_ms, value) VALUES (?, ?, ?, ?)`, ch.database)
+		query := fmt.Sprintf(`INSERT INTO %s.samples (fingerprint, timestamp_ms, value) VALUES (?, ?, ?)`, ch.database)
 		var stmt *sql.Stmt
 		if stmt, err = tx.PrepareContext(ctx, query); err != nil {
 			return errors.WithStack(err)
 		}
 
-		args := make([]interface{}, 4)
+		args := make([]interface{}, 3)
 		for i, ts := range data.TimeSeries {
-			args[1] = fingerprints[i]
+			args[0] = fingerprints[i]
 
 			for _, s := range ts.Samples {
-				args[0] = model.Time(s.TimestampMs).Time()
-				args[2] = s.TimestampMs
-				args[3] = s.Value
+				args[1] = s.TimestampMs
+				args[2] = s.Value
 				ch.l.Debugf("%s %v", query, args)
 				if _, err = stmt.ExecContext(ctx, args...); err != nil {
 					return errors.WithStack(err)

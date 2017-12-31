@@ -14,18 +14,23 @@ It requires Go 1.9+.
 ## Database Schema
 
 ```sql
-CREATE TABLE samples (
-    date Date,
-    fingerprint UInt64,
-    timestamp_ms Int64,
-    value Float64
-) ENGINE = MergeTree(date, (fingerprint, timestamp_ms), 8192);
-
 CREATE TABLE time_series (
     date Date,
     fingerprint UInt64,
     labels String
-) ENGINE = ReplacingMergeTree(date, fingerprint, 8192);
+)
+ENGINE = ReplacingMergeTree
+    PARTITION BY date
+    ORDER BY fingerprint;
+
+CREATE TABLE samples (
+    fingerprint UInt64,
+    timestamp_ms Int64,
+    value Float64
+)
+ENGINE = MergeTree
+    PARTITION BY toDate(timestamp_ms / 1000)
+    ORDER BY (fingerprint, timestamp_ms);
 ```
 
 ```sql
@@ -41,11 +46,11 @@ SELECT * FROM time_series WHERE fingerprint = 7975981685167825999;
 SELECT * FROM samples WHERE fingerprint = 7975981685167825999 LIMIT 3;
 ```
 ```
-┌───────date─┬─────────fingerprint─┬──timestamp_ms─┬─value─┐
-│ 2017-12-31 │ 7975981685167825999 │ 1514719474538 │     1 │
-│ 2017-12-31 │ 7975981685167825999 │ 1514719475541 │     1 │
-│ 2017-12-31 │ 7975981685167825999 │ 1514719476539 │     1 │
-└────────────┴─────────────────────┴───────────────┴───────┘
+┌─────────fingerprint─┬──timestamp_ms─┬─value─┐
+│ 7975981685167825999 │ 1514730532900 │     0 │
+│ 7975981685167825999 │ 1514730533901 │     1 │
+│ 7975981685167825999 │ 1514730534901 │     1 │
+└─────────────────────┴───────────────┴───────┘
 ```
 
 Time series in Prometheus are identified by label name/value pairs, including `__name__` label, which stores metric
@@ -55,10 +60,9 @@ time series are written to ClickHouse for persistence. They are also periodicall
 series written by other ClickHouse instances. `ReplacingMergeTree` ensures there are no duplicates if several ClickHouses
 wrote the same time series at the same time.
 
-PromHouse currently stores 26 bytes per sample: 2 bytes for Date (mandatory for ClickHouse's MergeTree), 8 bytes for
-UInt64 fingerprint, 8 bytes for Int64 timestamp, and 8 bytes for Float64 value. The actual compression rate is about
-4.5:1, that's about 26/4.5 = 5.7 bytes per sample. Prometheus local storage compresses 16 bytes (timestamp and value)
-per sample to [1.37](https://coreos.com/blog/prometheus-2.0-storage-layer-optimization), that's 12:1.
+PromHouse currently stores 24 bytes per sample: 8 bytes for UInt64 fingerprint, 8 bytes for Int64 timestamp, and 8 bytes
+for Float64 value. The actual compression rate is about 4.5:1, that's about 24/4.5 = 5.3 bytes per sample. Prometheus
+local storage compresses 16 bytes (timestamp and value) per sample to [1.37](https://coreos.com/blog/prometheus-2.0-storage-layer-optimization), that's 12:1.
 
 
 ### Important ClickHouse issues

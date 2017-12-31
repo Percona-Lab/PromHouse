@@ -82,14 +82,20 @@ func New(dsn string, database string, drop bool) (base.Storage, error) {
 			fingerprint UInt64,
 			timestamp_ms Int64,
 			value Float64
-		) ENGINE = MergeTree(date, (fingerprint, timestamp_ms), 8192)`, database))
+		)
+		ENGINE = MergeTree
+			PARTITION BY toDate(timestamp_ms / 1000)
+			ORDER BY (fingerprint, timestamp_ms)`, database))
 
 	queries = append(queries, fmt.Sprintf(`
 		CREATE TABLE IF NOT EXISTS %s.time_series (
 			date Date,
 			fingerprint UInt64,
 			labels String
-		) ENGINE = ReplacingMergeTree(date, fingerprint, 8192)`, database))
+		)
+		ENGINE = ReplacingMergeTree
+			PARTITION BY date
+			ORDER BY fingerprint`, database))
 
 	// we can't use database in DSN if it doesn't yet exist, so handle that in a special way
 

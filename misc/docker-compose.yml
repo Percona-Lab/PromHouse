@@ -16,9 +16,9 @@ services:
       - 127.0.0.1:9000:9000
       - 127.0.0.1:9009:9009
     network_mode: host
-    # volumes:
-    #   - ./config.xml:/etc/clickhouse-server/config.xml
-    #   - ./users.xml:/etc/clickhouse-server/users.xml
+    volumes:
+      - ./config.xml:/etc/clickhouse-server/config.xml
+      - ./users.xml:/etc/clickhouse-server/users.xml
 
   clickhouse_exporter:
     image: f1yegor/clickhouse-exporter

@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-package storages
+package clickhouse
 
 import (
 	"context"
@@ -42,8 +42,8 @@ const (
 	sampleRowSize = 2 + 8 + 8 + 8
 )
 
-// ClickHouse implements storage interface for the ClickHouse.
-type ClickHouse struct {
+// clickHouse implements storage interface for the ClickHouse.
+type clickHouse struct {
 	db       *sql.DB
 	l        *logrus.Entry
 	database string
@@ -65,7 +65,7 @@ type ClickHouse struct {
 	mWrittenSamples    prometheus.Counter
 }
 
-func NewClickHouse(dsn string, database string, drop bool) (*ClickHouse, error) {
+func New(dsn string, database string, drop bool) (base.Storage, error) {
 	l := logrus.WithField("component", "clickhouse")
 
 	var queries []string
@@ -126,7 +126,7 @@ func NewClickHouse(dsn string, database string, drop bool) (*ClickHouse, error) 
 		return nil, err
 	}
 
-	ch := &ClickHouse{
+	ch := &clickHouse{
 		db:       db,
 		l:        l,
 		database: database,
@@ -207,7 +207,7 @@ func NewClickHouse(dsn string, database string, drop bool) (*ClickHouse, error) 
 	return ch, nil
 }
 
-func (ch *ClickHouse) runTimeSeriesReloader(ctx context.Context) {
+func (ch *clickHouse) runTimeSeriesReloader(ctx context.Context) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
@@ -258,7 +258,7 @@ func (ch *ClickHouse) runTimeSeriesReloader(ctx context.Context) {
 	}
 }
 
-func (ch *ClickHouse) Describe(c chan<- *prometheus.Desc) {
+func (ch *clickHouse) Describe(c chan<- *prometheus.Desc) {
 	ch.mTimeSeriesCurrent.Describe(c)
 	ch.mSamplesCurrent.Describe(c)
 	ch.mSamplesCurrentBytes.Describe(c)
@@ -273,7 +273,7 @@ func (ch *ClickHouse) Describe(c chan<- *prometheus.Desc) {
 	ch.mWrittenSamples.Describe(c)
 }
 
-func (ch *ClickHouse) Collect(c chan<- prometheus.Metric) {
+func (ch *clickHouse) Collect(c chan<- prometheus.Metric) {
 	// TODO remove this when https://github.com/f1yegor/clickhouse_exporter/pull/13 is merged
 	// 'SELECT COUNT(*) FROM samples' is slow
 	query := `
@@ -326,7 +326,7 @@ func (ch *ClickHouse) Collect(c chan<- prometheus.Metric) {
 	ch.mWrittenSamples.Collect(c)
 }
 
-func (ch *ClickHouse) Read(ctx context.Context, queries []base.Query) (res *prompb.ReadResponse, err error) {
+func (ch *clickHouse) Read(ctx context.Context, queries []base.Query) (res *prompb.ReadResponse, err error) {
 	// track time and response status
 	start := time.Now()
 	defer func() {
@@ -455,7 +455,7 @@ func inTransaction(ctx context.Context, db *sql.DB, f func(*sql.Tx) error) (err 
 	return
 }
 
-func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err error) {
+func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err error) {
 	// track time and response status
 	start := time.Now()
 	defer func() {
@@ -561,4 +561,4 @@ func (ch *ClickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 }
 
 // check interface
-var _ base.Storage = (*ClickHouse)(nil)
+var _ base.Storage = (*clickHouse)(nil)

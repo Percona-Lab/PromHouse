@@ -41,7 +41,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/Percona-Lab/PromHouse/handlers"
-	"github.com/Percona-Lab/PromHouse/storages"
+	"github.com/Percona-Lab/PromHouse/storages/clickhouse"
 )
 
 const (
@@ -59,9 +59,7 @@ var (
 func runPromServer(ctx context.Context) {
 	l := logrus.WithField("component", "prom")
 
-	// storage := storages.NewMemory()
-
-	storage, err := storages.NewClickHouse("tcp://127.0.0.1:9000", "prometheus", *dropF)
+	storage, err := clickhouse.New("tcp://127.0.0.1:9000", "prometheus", *dropF)
 	if err != nil {
 		l.Panic(err)
 	}

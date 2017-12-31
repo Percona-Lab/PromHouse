@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-package storages
+package clickhouse
 
 import (
 	"context"
@@ -47,7 +47,7 @@ func (s *scanner) Scan(v interface{}) error {
 	return nil
 }
 
-func (ch *ClickHouse) readRawSQL(ctx context.Context, query string, ts int64) (*prompb.ReadResponse, error) {
+func (ch *clickHouse) readRawSQL(ctx context.Context, query string, ts int64) (*prompb.ReadResponse, error) {
 	rows, err := ch.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err

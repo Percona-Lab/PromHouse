@@ -30,6 +30,7 @@ import (
 
 	"github.com/Percona-Lab/PromHouse/prompb"
 	"github.com/Percona-Lab/PromHouse/storages/base"
+	"github.com/Percona-Lab/PromHouse/storages/memory"
 	"github.com/Percona-Lab/PromHouse/storages/test"
 )
 
@@ -81,7 +82,7 @@ func TestStorages(t *testing.T) {
 
 	for storageName, newStorage := range map[string]func() (base.Storage, error){
 		"Memory": func() (base.Storage, error) {
-			return NewMemory(), nil
+			return memory.New(), nil
 		},
 		"ClickHouse": func() (base.Storage, error) {
 			return NewClickHouse("tcp://127.0.0.1:9000", "prometheus_test", true)
@@ -438,7 +439,7 @@ func TestStorages(t *testing.T) {
 
 func BenchmarkStorages(b *testing.B) {
 	for storageName, newStorage := range map[string]func() (base.Storage, error){
-		"Memory":     func() (base.Storage, error) { return NewMemory(), nil },
+		"Memory":     func() (base.Storage, error) { return memory.New(), nil },
 		"ClickHouse": func() (base.Storage, error) { return NewClickHouse("tcp://127.0.0.1:9000", "prometheus_test", true) },
 	} {
 		b.Run(storageName, func(b *testing.B) {

@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-package storages
+package memory
 
 import (
 	"context"
@@ -27,27 +27,27 @@ import (
 	"github.com/Percona-Lab/PromHouse/storages/base"
 )
 
-// Memory is a functional dummy storage for testing.
-type Memory struct {
+// memory is a functional dummy storage for testing.
+type memory struct {
 	rw      sync.RWMutex
 	metrics map[uint64][]*prompb.Label
 	samples map[uint64][]*prompb.Sample
 }
 
-func NewMemory() *Memory {
-	return &Memory{
+func New() base.Storage {
+	return &memory{
 		metrics: make(map[uint64][]*prompb.Label, 8192),
 		samples: make(map[uint64][]*prompb.Sample, 8192),
 	}
 }
 
-func (m *Memory) Describe(c chan<- *prometheus.Desc) {
+func (m *memory) Describe(c chan<- *prometheus.Desc) {
 }
 
-func (m *Memory) Collect(c chan<- prometheus.Metric) {
+func (m *memory) Collect(c chan<- prometheus.Metric) {
 }
 
-func (m *Memory) Read(ctx context.Context, queries []base.Query) (*prompb.ReadResponse, error) {
+func (m *memory) Read(ctx context.Context, queries []base.Query) (*prompb.ReadResponse, error) {
 	m.rw.RLock()
 	defer m.rw.RUnlock()
 
@@ -88,7 +88,7 @@ func (m *Memory) Read(ctx context.Context, queries []base.Query) (*prompb.ReadRe
 	return res, nil
 }
 
-func (m *Memory) Write(ctx context.Context, data *prompb.WriteRequest) error {
+func (m *memory) Write(ctx context.Context, data *prompb.WriteRequest) error {
 	m.rw.Lock()
 	defer m.rw.Unlock()
 
@@ -114,4 +114,4 @@ func (m *Memory) Write(ctx context.Context, data *prompb.WriteRequest) error {
 }
 
 // check interface
-var _ base.Storage = (*Memory)(nil)
+var _ base.Storage = (*memory)(nil)

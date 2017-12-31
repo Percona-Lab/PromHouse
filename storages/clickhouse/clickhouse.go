@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+// Package clickhouse provides ClickHouse storage.
 package clickhouse
 
 import (
@@ -81,16 +82,14 @@ func New(dsn string, database string, drop bool) (base.Storage, error) {
 			fingerprint UInt64,
 			timestamp_ms Int64,
 			value Float64
-		)
-		ENGINE = MergeTree(date, (fingerprint, timestamp_ms), 8192)`, database))
+		) ENGINE = MergeTree(date, (fingerprint, timestamp_ms), 8192)`, database))
 
 	queries = append(queries, fmt.Sprintf(`
 		CREATE TABLE IF NOT EXISTS %s.time_series (
 			date Date,
 			fingerprint UInt64,
 			labels String
-		)
-		ENGINE = ReplacingMergeTree(date, fingerprint, 8192)`, database))
+		) ENGINE = ReplacingMergeTree(date, fingerprint, 8192)`, database))
 
 	// we can't use database in DSN if it doesn't yet exist, so handle that in a special way
 

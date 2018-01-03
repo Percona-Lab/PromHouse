@@ -37,8 +37,7 @@ type PromAPI struct {
 	Logger  *logrus.Entry
 }
 
-// Store pointers, not slices.
-// See https://github.com/dominikh/go-tools/blob/master/cmd/staticcheck/docs/checks/SA6002
+// Store pointers, not slices. See https://staticcheck.io/docs/staticcheck#SA6002
 var snappyPool = sync.Pool{
 	New: func() interface{} {
 		b := make([]byte, 1024)

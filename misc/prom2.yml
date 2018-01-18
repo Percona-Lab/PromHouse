@@ -26,3 +26,4 @@ remote_read:
 
 remote_write:
   - url: http://127.0.0.1:7781/write
+    # TODO add queue_config

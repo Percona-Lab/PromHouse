@@ -8,7 +8,7 @@ go:
 
 env:
   - PROM_IMAGE=prom/prometheus:v1.8.2 PROM_CONFIG=prom1
-  - PROM_IMAGE=prom/prometheus:v2.0.0 PROM_CONFIG=prom2
+  - PROM_IMAGE=prom/prometheus:v2.2.1 PROM_CONFIG=prom2
   - PROM_IMAGE=prom/prometheus:master PROM_CONFIG=prom2
 
 services:

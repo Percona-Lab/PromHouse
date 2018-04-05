@@ -26,4 +26,3 @@ remote_read:
 
 remote_write:
   - url: http://docker.for.mac.host.internal:7781/write
-    # TODO add queue_config

@@ -6,7 +6,7 @@ services:
     ports:
       - 127.0.0.1:9090:9090
     volumes:
-      - ./${PROM_CONFIG:-prom2}-mac.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/${PROM_CONFIG:-prom2}-mac.yml:/etc/prometheus/prometheus.yml
 
   clickhouse:
     image: yandex/clickhouse-server
@@ -15,8 +15,8 @@ services:
       - 127.0.0.1:9000:9000
       - 127.0.0.1:9009:9009
     volumes:
-      - ./config.xml:/etc/clickhouse-server/config.xml
-      - ./users.xml:/etc/clickhouse-server/users.xml
+      - ./clickhouse/config.xml:/etc/clickhouse-server/config.xml
+      - ./clickhouse/users.xml:/etc/clickhouse-server/users.xml
 
   clickhouse_exporter:
     image: f1yegor/clickhouse-exporter
@@ -29,5 +29,5 @@ services:
     ports:
       - 127.0.0.1:3000:3000
     volumes:
-      - ./grafana.ini:/etc/grafana/grafana.ini
-      - ./dashboards:/var/lib/grafana/dashboards
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini
+      - ./grafana/provisioning:/etc/grafana/provisioning

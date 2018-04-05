@@ -38,6 +38,7 @@ message Query {
 }
 
 message QueryResult {
+  // Samples within a time series must be ordered by time.
   repeated TimeSeries time_series = 1;
 }
 

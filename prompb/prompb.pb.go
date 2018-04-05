@@ -203,6 +203,7 @@ func (m *Query) GetMatchers() []*LabelMatcher {
 }
 
 type QueryResult struct {
+	// Samples within a time series must be ordered by time.
 	TimeSeries []*TimeSeries `protobuf:"bytes,1,rep,name=time_series,json=timeSeries" json:"time_series,omitempty"`
 }
 

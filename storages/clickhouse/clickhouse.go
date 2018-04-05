@@ -57,20 +57,15 @@ type clickHouse struct {
 	mSamplesCurrentBytes        prometheus.Gauge
 	mSamplesCurrentVirtualBytes prometheus.Gauge
 
-	mReads      prometheus.Summary
-	mReadErrors *prometheus.CounterVec
-
-	mWrites            prometheus.Summary
-	mWriteErrors       *prometheus.CounterVec
 	mWrittenTimeSeries prometheus.Counter
 	mWrittenSamples    prometheus.Counter
 }
 
-func New(dsn string, database string, drop bool) (base.Storage, error) {
+func New(dsn string, database string, dropDatabase bool) (base.Storage, error) {
 	l := logrus.WithField("component", "clickhouse")
 
 	var queries []string
-	if drop {
+	if dropDatabase {
 		queries = append(queries, fmt.Sprintf(`DROP DATABASE IF EXISTS %s`, database))
 	}
 	queries = append(queries, fmt.Sprintf(`CREATE DATABASE IF NOT EXISTS %s`, database))
@@ -161,31 +156,6 @@ func New(dsn string, database string, drop bool) (base.Storage, error) {
 			Help:      "Current number of stored samples (virtual uncompressed bytes).",
 		}),
 
-		mReads: prometheus.NewSummary(prometheus.SummaryOpts{
-			Namespace: namespace,
-			Subsystem: subsystem,
-			Name:      "reads",
-			Help:      "Durations of successful reads.",
-		}),
-		mReadErrors: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: namespace,
-			Subsystem: subsystem,
-			Name:      "read_errors",
-			Help:      "Number of read errors by type: canceled, other.",
-		}, []string{"type"}),
-
-		mWrites: prometheus.NewSummary(prometheus.SummaryOpts{
-			Namespace: namespace,
-			Subsystem: subsystem,
-			Name:      "writes",
-			Help:      "Durations of committed writes.",
-		}),
-		mWriteErrors: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: namespace,
-			Subsystem: subsystem,
-			Name:      "write_errors",
-			Help:      "Number of write errors by type: canceled, other.",
-		}, []string{"type"}),
 		mWrittenTimeSeries: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: subsystem,
@@ -201,11 +171,6 @@ func New(dsn string, database string, drop bool) (base.Storage, error) {
 	}
 
 	go ch.runTimeSeriesReloader(context.TODO())
-
-	ch.mReadErrors.WithLabelValues("canceled").Set(0)
-	ch.mReadErrors.WithLabelValues("other").Set(0)
-	ch.mWriteErrors.WithLabelValues("canceled").Set(0)
-	ch.mWriteErrors.WithLabelValues("other").Set(0)
 
 	return ch, nil
 }
@@ -266,12 +231,6 @@ func (ch *clickHouse) Describe(c chan<- *prometheus.Desc) {
 	ch.mSamplesCurrent.Describe(c)
 	ch.mSamplesCurrentBytes.Describe(c)
 	ch.mSamplesCurrentVirtualBytes.Describe(c)
-
-	ch.mReads.Describe(c)
-	ch.mReadErrors.Describe(c)
-
-	ch.mWrites.Describe(c)
-	ch.mWriteErrors.Describe(c)
 	ch.mWrittenTimeSeries.Describe(c)
 	ch.mWrittenSamples.Describe(c)
 }
@@ -319,32 +278,11 @@ func (ch *clickHouse) Collect(c chan<- prometheus.Metric) {
 	ch.mSamplesCurrent.Collect(c)
 	ch.mSamplesCurrentBytes.Collect(c)
 	ch.mSamplesCurrentVirtualBytes.Collect(c)
-
-	ch.mReads.Collect(c)
-	ch.mReadErrors.Collect(c)
-
-	ch.mWrites.Collect(c)
-	ch.mWriteErrors.Collect(c)
 	ch.mWrittenTimeSeries.Collect(c)
 	ch.mWrittenSamples.Collect(c)
 }
 
-func (ch *clickHouse) Read(ctx context.Context, queries []base.Query) (res *prompb.ReadResponse, err error) {
-	// track time and response status
-	start := time.Now()
-	defer func() {
-		if err == nil {
-			ch.mReads.Observe(time.Since(start).Seconds())
-			return
-		}
-
-		t := "other"
-		if err == context.Canceled {
-			t = "canceled"
-		}
-		ch.mReadErrors.WithLabelValues(t).Inc()
-	}()
-
+func (ch *clickHouse) Read(ctx context.Context, queries []base.Query) (*prompb.ReadResponse, error) {
 	// special case for {{job="rawsql", query="SELECT …"}} (start is ignored)
 	if len(queries) == 1 && len(queries[0].Matchers) == 2 {
 		var query string
@@ -362,7 +300,7 @@ func (ch *clickHouse) Read(ctx context.Context, queries []base.Query) (res *prom
 		}
 	}
 
-	res = &prompb.ReadResponse{
+	res := &prompb.ReadResponse{
 		Results: make([]*prompb.QueryResult, len(queries)),
 	}
 	for i, q := range queries {
@@ -395,7 +333,7 @@ func (ch *clickHouse) Read(ctx context.Context, queries []base.Query) (res *prom
 		}
 		args = append(args, int64(q.Start))
 		args = append(args, int64(q.End))
-		err = func() error {
+		err := func() error {
 			ch.l.Debugf("%s %v", query, args)
 			rows, err := ch.db.Query(query, args...)
 			if err != nil {
@@ -435,11 +373,11 @@ func (ch *clickHouse) Read(ctx context.Context, queries []base.Query) (res *prom
 			return errors.WithStack(rows.Err())
 		}()
 		if err != nil {
-			return
+			return nil, err
 		}
 	}
 
-	return
+	return res, nil
 }
 
 func inTransaction(ctx context.Context, db *sql.DB, f func(*sql.Tx) error) (err error) {
@@ -458,22 +396,7 @@ func inTransaction(ctx context.Context, db *sql.DB, f func(*sql.Tx) error) (err 
 	return
 }
 
-func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err error) {
-	// track time and response status
-	start := time.Now()
-	defer func() {
-		if err == nil {
-			ch.mWrites.Observe(time.Since(start).Seconds())
-			return
-		}
-
-		t := "other"
-		if err == context.Canceled {
-			t = "canceled"
-		}
-		ch.mWriteErrors.WithLabelValues(t).Inc()
-	}()
-
+func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) error {
 	// calculate fingerprints, map them to time series
 	fingerprints := make([]uint64, len(data.TimeSeries))
 	timeSeries := make(map[uint64][]*prompb.Label, len(data.TimeSeries))
@@ -501,9 +424,10 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 
 	// write new time series
 	if len(newTimeSeries) > 0 {
-		err = inTransaction(ctx, ch.db, func(tx *sql.Tx) error {
+		err := inTransaction(ctx, ch.db, func(tx *sql.Tx) error {
 			query := fmt.Sprintf(`INSERT INTO %s.time_series (date, fingerprint, labels) VALUES (?, ?, ?)`, ch.database)
 			var stmt *sql.Stmt
+			var err error
 			if stmt, err = tx.PrepareContext(ctx, query); err != nil {
 				return errors.WithStack(err)
 			}
@@ -514,7 +438,7 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 				args[1] = f
 				args[2] = marshalLabels(timeSeries[f], make([]byte, 0, 128)) // TODO use pool?
 				ch.l.Debugf("%s %v", query, args)
-				if _, err = stmt.ExecContext(ctx, args...); err != nil {
+				if _, err := stmt.ExecContext(ctx, args...); err != nil {
 					return errors.WithStack(err)
 				}
 			}
@@ -522,15 +446,16 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 			return stmt.Close()
 		})
 		if err != nil {
-			return
+			return err
 		}
 	}
 
 	// write samples
 	var samples int
-	err = inTransaction(ctx, ch.db, func(tx *sql.Tx) error {
+	err := inTransaction(ctx, ch.db, func(tx *sql.Tx) error {
 		query := fmt.Sprintf(`INSERT INTO %s.samples (fingerprint, timestamp_ms, value) VALUES (?, ?, ?)`, ch.database)
 		var stmt *sql.Stmt
+		var err error
 		if stmt, err = tx.PrepareContext(ctx, query); err != nil {
 			return errors.WithStack(err)
 		}
@@ -543,7 +468,7 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 				args[1] = s.TimestampMs
 				args[2] = s.Value
 				ch.l.Debugf("%s %v", query, args)
-				if _, err = stmt.ExecContext(ctx, args...); err != nil {
+				if _, err := stmt.ExecContext(ctx, args...); err != nil {
 					return errors.WithStack(err)
 				}
 				samples++
@@ -553,13 +478,13 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) (err
 		return stmt.Close()
 	})
 	if err != nil {
-		return
+		return err
 	}
 
 	ch.mWrittenTimeSeries.Add(float64(len(newTimeSeries)))
 	ch.mWrittenSamples.Add(float64(samples))
 	ch.l.Debugf("Wrote %d new time series, %d samples.", len(newTimeSeries), samples)
-	return
+	return nil
 }
 
 // check interface

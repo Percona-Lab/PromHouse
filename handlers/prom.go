@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
@@ -43,6 +44,7 @@ type PromAPI struct {
 	Logger  *logrus.Entry
 
 	mReadsStarted, mWritesStarted prometheus.Counter
+	mReads, mWrites               *prometheus.SummaryVec
 }
 
 func NewPromAPI(storage base.Storage, logger *logrus.Entry) *PromAPI {
@@ -62,17 +64,33 @@ func NewPromAPI(storage base.Storage, logger *logrus.Entry) *PromAPI {
 			Name:      "writes_started",
 			Help:      "Number of started writes.",
 		}),
+		mReads: prometheus.NewSummaryVec(prometheus.SummaryOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "reads",
+			Help:      "Durations of reads by result type: ok, canceled, other.",
+		}, []string{"type"}),
+		mWrites: prometheus.NewSummaryVec(prometheus.SummaryOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "writes",
+			Help:      "Durations of writes by result type: ok, canceled, other.",
+		}, []string{"type"}),
 	}
 }
 
 func (p *PromAPI) Describe(c chan<- *prometheus.Desc) {
 	p.mReadsStarted.Describe(c)
 	p.mWritesStarted.Describe(c)
+	p.mReads.Describe(c)
+	p.mWrites.Describe(c)
 }
 
 func (p *PromAPI) Collect(c chan<- prometheus.Metric) {
 	p.mReadsStarted.Collect(c)
 	p.mWritesStarted.Collect(c)
+	p.mReads.Collect(c)
+	p.mWrites.Collect(c)
 }
 
 // Store pointers, not slices. See https://staticcheck.io/docs/staticcheck#SA6002
@@ -136,12 +154,28 @@ func (p *PromAPI) convertReadRequest(request *prompb.ReadRequest) []base.Query {
 	return queries
 }
 
-func (p *PromAPI) Read(ctx context.Context, rw http.ResponseWriter, req *http.Request) error {
+func errResponseType(err error) string {
+	switch err {
+	case nil:
+		return "ok"
+	case context.Canceled, context.DeadlineExceeded:
+		return "canceled"
+	default:
+		return "other"
+	}
+}
+
+func (p *PromAPI) Read(ctx context.Context, rw http.ResponseWriter, req *http.Request) (err error) {
+	// track time and response status
 	p.mReadsStarted.Inc()
+	start := time.Now()
+	defer func() {
+		p.mReads.WithLabelValues(errResponseType(err)).Observe(time.Since(start).Seconds())
+	}()
 
 	var request prompb.ReadRequest
-	if err := readPB(req, &request); err != nil {
-		return err
+	if err = readPB(req, &request); err != nil {
+		return
 	}
 
 	// read from storage
@@ -149,17 +183,17 @@ func (p *PromAPI) Read(ctx context.Context, rw http.ResponseWriter, req *http.Re
 	for i, q := range queries {
 		p.Logger.Infof("Query %d: %s", i+1, q)
 	}
-	response, err := p.Storage.Read(ctx, queries)
-	if err != nil {
+	var response *prompb.ReadResponse
+	if response, err = p.Storage.Read(ctx, queries); err != nil {
 		return err
 	}
 	p.Logger.Debugf("Response data:\n%s", response)
 
 	// marshal, encode and write response
 	// TODO use MarshalTo with sync.Pool?
-	b, err := proto.Marshal(response)
-	if err != nil {
-		return err
+	var b []byte
+	if b, err = proto.Marshal(response); err != nil {
+		return
 	}
 	rw.Header().Set("Content-Type", "application/x-protobuf")
 	rw.Header().Set("Content-Encoding", "snappy")
@@ -168,17 +202,23 @@ func (p *PromAPI) Read(ctx context.Context, rw http.ResponseWriter, req *http.Re
 	compressed := snappy.Encode(dst, b)
 	_, err = rw.Write(compressed)
 	snappyPool.Put(&compressed)
-	return err
+	return
 }
 
-func (p *PromAPI) Write(ctx context.Context, rw http.ResponseWriter, req *http.Request) error {
+func (p *PromAPI) Write(ctx context.Context, rw http.ResponseWriter, req *http.Request) (err error) {
+	// track time and response status
 	p.mWritesStarted.Inc()
+	start := time.Now()
+	defer func() {
+		p.mWrites.WithLabelValues(errResponseType(err)).Observe(time.Since(start).Seconds())
+	}()
 
 	var request prompb.WriteRequest
-	if err := readPB(req, &request); err != nil {
-		return err
+	if err = readPB(req, &request); err != nil {
+		return
 	}
-	return p.Storage.Write(ctx, &request)
+	err = p.Storage.Write(ctx, &request)
+	return
 }
 
 // check interface

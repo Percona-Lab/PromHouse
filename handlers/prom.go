@@ -25,6 +25,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/sirupsen/logrus"
 
@@ -32,9 +33,46 @@ import (
 	"github.com/Percona-Lab/PromHouse/storages/base"
 )
 
+const (
+	namespace = "promhouse"
+	subsystem = "api"
+)
+
 type PromAPI struct {
 	Storage base.Storage
 	Logger  *logrus.Entry
+
+	mReadsStarted, mWritesStarted prometheus.Counter
+}
+
+func NewPromAPI(storage base.Storage, logger *logrus.Entry) *PromAPI {
+	return &PromAPI{
+		Storage: storage,
+		Logger:  logger,
+
+		mReadsStarted: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "reads_started",
+			Help:      "Number of started reads.",
+		}),
+		mWritesStarted: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "writes_started",
+			Help:      "Number of started writes.",
+		}),
+	}
+}
+
+func (p *PromAPI) Describe(c chan<- *prometheus.Desc) {
+	p.mReadsStarted.Describe(c)
+	p.mWritesStarted.Describe(c)
+}
+
+func (p *PromAPI) Collect(c chan<- prometheus.Metric) {
+	p.mReadsStarted.Collect(c)
+	p.mWritesStarted.Collect(c)
 }
 
 // Store pointers, not slices. See https://staticcheck.io/docs/staticcheck#SA6002
@@ -99,6 +137,8 @@ func (p *PromAPI) convertReadRequest(request *prompb.ReadRequest) []base.Query {
 }
 
 func (p *PromAPI) Read(ctx context.Context, rw http.ResponseWriter, req *http.Request) error {
+	p.mReadsStarted.Inc()
+
 	var request prompb.ReadRequest
 	if err := readPB(req, &request); err != nil {
 		return err
@@ -132,9 +172,14 @@ func (p *PromAPI) Read(ctx context.Context, rw http.ResponseWriter, req *http.Re
 }
 
 func (p *PromAPI) Write(ctx context.Context, rw http.ResponseWriter, req *http.Request) error {
+	p.mWritesStarted.Inc()
+
 	var request prompb.WriteRequest
 	if err := readPB(req, &request); err != nil {
 		return err
 	}
 	return p.Storage.Write(ctx, &request)
 }
+
+// check interface
+var _ prometheus.Collector = (*PromAPI)(nil)

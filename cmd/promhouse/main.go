@@ -66,10 +66,8 @@ func runPromServer(ctx context.Context) {
 
 	prometheus.MustRegister(storage)
 
-	promAPI := handlers.PromAPI{
-		Storage: storage,
-		Logger:  l,
-	}
+	promAPI := handlers.NewPromAPI(storage, l)
+	prometheus.MustRegister(promAPI)
 
 	mux := http.NewServeMux()
 	handleFunc := func(pattern string, handler func(context.Context, http.ResponseWriter, *http.Request) error) {

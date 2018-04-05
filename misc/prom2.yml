@@ -25,5 +25,12 @@ remote_read:
   - url: http://127.0.0.1:7781/read
 
 remote_write:
-  - url: http://127.0.0.1:7781/write
-    # TODO add queue_config
+  - url: http://docker.for.mac.host.internal:7781/write
+    queue_config:
+      capacity: 1000000
+      max_shards: 100
+      max_samples_per_send: 10000
+      batch_send_deadline: 500ms
+      max_retries: 10
+      min_backoff: 30ms
+      max_backoff: 100ms

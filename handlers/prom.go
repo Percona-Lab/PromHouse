@@ -40,8 +40,8 @@ const (
 )
 
 type PromAPI struct {
-	Storage base.Storage
-	Logger  *logrus.Entry
+	storage base.Storage
+	logger  *logrus.Entry
 
 	mReadsStarted, mWritesStarted prometheus.Counter
 	mReads, mWrites               *prometheus.SummaryVec
@@ -49,8 +49,8 @@ type PromAPI struct {
 
 func NewPromAPI(storage base.Storage, logger *logrus.Entry) *PromAPI {
 	return &PromAPI{
-		Storage: storage,
-		Logger:  logger,
+		storage: storage,
+		logger:  logger,
 
 		mReadsStarted: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: namespace,
@@ -138,7 +138,7 @@ func (p *PromAPI) convertReadRequest(request *prompb.ReadRequest) []base.Query {
 			case prompb.LabelMatcher_NRE:
 				t = base.MatchNotRegexp
 			default:
-				p.Logger.Panicf("expectation failed: unexpected matcher %d", m.Type)
+				p.logger.Panicf("expectation failed: unexpected matcher %d", m.Type)
 			}
 
 			q.Matchers[j] = base.Matcher{
@@ -181,13 +181,13 @@ func (p *PromAPI) Read(ctx context.Context, rw http.ResponseWriter, req *http.Re
 	// read from storage
 	queries := p.convertReadRequest(&request)
 	for i, q := range queries {
-		p.Logger.Infof("Query %d: %s", i+1, q)
+		p.logger.Infof("Query %d: %s", i+1, q)
 	}
 	var response *prompb.ReadResponse
-	if response, err = p.Storage.Read(ctx, queries); err != nil {
+	if response, err = p.storage.Read(ctx, queries); err != nil {
 		return err
 	}
-	p.Logger.Debugf("Response data:\n%s", response)
+	p.logger.Debugf("Response data:\n%s", response)
 
 	// marshal, encode and write response
 	// TODO use MarshalTo with sync.Pool?
@@ -217,7 +217,7 @@ func (p *PromAPI) Write(ctx context.Context, rw http.ResponseWriter, req *http.R
 	if err = readPB(req, &request); err != nil {
 		return
 	}
-	err = p.Storage.Write(ctx, &request)
+	err = p.storage.Write(ctx, &request)
 	return
 }
 

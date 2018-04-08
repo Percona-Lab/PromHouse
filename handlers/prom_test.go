@@ -86,12 +86,10 @@ func getWriteRequest() *prompb.WriteRequest {
 }
 
 func TestWrite(t *testing.T) {
-	h := PromAPI{
-		Storage: blackhole.New(),
-		Logger: logrus.NewEntry(&logrus.Logger{
-			Level: logrus.FatalLevel,
-		}),
+	l := &logrus.Logger{
+		Level: logrus.FatalLevel,
 	}
+	h := NewPromAPI(blackhole.New(), logrus.NewEntry(l))
 
 	data, err := proto.Marshal(getWriteRequest())
 	require.NoError(t, err)
@@ -102,12 +100,10 @@ func TestWrite(t *testing.T) {
 }
 
 func BenchmarkWrite(b *testing.B) {
-	h := PromAPI{
-		Storage: blackhole.New(),
-		Logger: logrus.NewEntry(&logrus.Logger{
-			Level: logrus.FatalLevel,
-		}),
+	l := &logrus.Logger{
+		Level: logrus.FatalLevel,
 	}
+	h := NewPromAPI(blackhole.New(), logrus.NewEntry(l))
 
 	data, err := proto.Marshal(getWriteRequest())
 	require.NoError(b, err)

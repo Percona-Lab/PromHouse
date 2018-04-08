@@ -41,16 +41,18 @@ const (
 
 type PromAPI struct {
 	storage base.Storage
-	logger  *logrus.Entry
+	l       *logrus.Entry
 
 	mReadsStarted, mWritesStarted prometheus.Counter
 	mReads, mWrites               *prometheus.SummaryVec
+
+	mWrittenSamples prometheus.Counter
 }
 
-func NewPromAPI(storage base.Storage, logger *logrus.Entry) *PromAPI {
+func NewPromAPI(storage base.Storage, l *logrus.Entry) *PromAPI {
 	return &PromAPI{
 		storage: storage,
-		logger:  logger,
+		l:       l,
 
 		mReadsStarted: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: namespace,
@@ -76,6 +78,12 @@ func NewPromAPI(storage base.Storage, logger *logrus.Entry) *PromAPI {
 			Name:      "writes",
 			Help:      "Durations of writes by result type: ok, canceled, other.",
 		}, []string{"type"}),
+		mWrittenSamples: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "written_samples",
+			Help:      "Number of written samples.",
+		}),
 	}
 }
 
@@ -84,6 +92,7 @@ func (p *PromAPI) Describe(c chan<- *prometheus.Desc) {
 	p.mWritesStarted.Describe(c)
 	p.mReads.Describe(c)
 	p.mWrites.Describe(c)
+	p.mWrittenSamples.Describe(c)
 }
 
 func (p *PromAPI) Collect(c chan<- prometheus.Metric) {
@@ -91,9 +100,10 @@ func (p *PromAPI) Collect(c chan<- prometheus.Metric) {
 	p.mWritesStarted.Collect(c)
 	p.mReads.Collect(c)
 	p.mWrites.Collect(c)
+	p.mWrittenSamples.Collect(c)
 }
 
-// Store pointers, not slices. See https://staticcheck.io/docs/staticcheck#SA6002
+// Stores pointers, not slices. See https://staticcheck.io/docs/staticcheck#SA6002
 var snappyPool = sync.Pool{
 	New: func() interface{} {
 		b := make([]byte, 1024)
@@ -138,7 +148,7 @@ func (p *PromAPI) convertReadRequest(request *prompb.ReadRequest) []base.Query {
 			case prompb.LabelMatcher_NRE:
 				t = base.MatchNotRegexp
 			default:
-				p.logger.Panicf("expectation failed: unexpected matcher %d", m.Type)
+				p.l.Panicf("expectation failed: unexpected matcher %d", m.Type)
 			}
 
 			q.Matchers[j] = base.Matcher{
@@ -181,13 +191,13 @@ func (p *PromAPI) Read(ctx context.Context, rw http.ResponseWriter, req *http.Re
 	// read from storage
 	queries := p.convertReadRequest(&request)
 	for i, q := range queries {
-		p.logger.Infof("Query %d: %s", i+1, q)
+		p.l.Infof("Query %d: %s", i+1, q)
 	}
 	var response *prompb.ReadResponse
 	if response, err = p.storage.Read(ctx, queries); err != nil {
 		return err
 	}
-	p.logger.Debugf("Response data:\n%s", response)
+	p.l.Debugf("Response data:\n%s", response)
 
 	// marshal, encode and write response
 	// TODO use MarshalTo with sync.Pool?
@@ -218,6 +228,19 @@ func (p *PromAPI) Write(ctx context.Context, rw http.ResponseWriter, req *http.R
 		return
 	}
 	err = p.storage.Write(ctx, &request)
+
+	var samples int
+	for _, ts := range request.TimeSeries {
+		samples += len(ts.Samples)
+	}
+	p.mWrittenSamples.Add(float64(samples))
+
+	if err == nil {
+		p.l.Debugf("Wrote %d samples.", samples)
+	} else {
+		p.l.Errorf("Error writing %d samples: %s.", samples, err)
+	}
+
 	return
 }
 

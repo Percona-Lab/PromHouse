@@ -57,7 +57,7 @@ var (
 
 // runPromServer runs Prometheus API server until context is canceled, then gracefully stops it.
 func runPromServer(ctx context.Context) {
-	l := logrus.WithField("component", "prom")
+	l := logrus.WithField("component", "api")
 
 	storage, err := clickhouse.New("tcp://127.0.0.1:9000", "prometheus", *dropF)
 	if err != nil {

@@ -22,6 +22,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/url"
+	"runtime/pprof"
 	"strings"
 	"sync"
 	"time"
@@ -58,7 +59,6 @@ type clickHouse struct {
 	mSamplesCurrentVirtualBytes prometheus.Gauge
 
 	mWrittenTimeSeries prometheus.Counter
-	mWrittenSamples    prometheus.Counter
 }
 
 func New(dsn string, database string, dropDatabase bool) (base.Storage, error) {
@@ -155,22 +155,19 @@ func New(dsn string, database string, dropDatabase bool) (base.Storage, error) {
 			Name:      "samples_current_virtual_bytes",
 			Help:      "Current number of stored samples (virtual uncompressed bytes).",
 		}),
-
 		mWrittenTimeSeries: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: subsystem,
 			Name:      "written_time_series",
 			Help:      "Number of written time series.",
 		}),
-		mWrittenSamples: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: namespace,
-			Subsystem: subsystem,
-			Name:      "written_samples",
-			Help:      "Number of written samples.",
-		}),
 	}
 
-	go ch.runTimeSeriesReloader(context.TODO())
+	go func() {
+		ctx := pprof.WithLabels(context.TODO(), pprof.Labels("component", "clickhouse_reloader"))
+		pprof.SetGoroutineLabels(ctx)
+		ch.runTimeSeriesReloader(ctx)
+	}()
 
 	return ch, nil
 }
@@ -232,7 +229,6 @@ func (ch *clickHouse) Describe(c chan<- *prometheus.Desc) {
 	ch.mSamplesCurrentBytes.Describe(c)
 	ch.mSamplesCurrentVirtualBytes.Describe(c)
 	ch.mWrittenTimeSeries.Describe(c)
-	ch.mWrittenSamples.Describe(c)
 }
 
 func (ch *clickHouse) Collect(c chan<- prometheus.Metric) {
@@ -279,7 +275,6 @@ func (ch *clickHouse) Collect(c chan<- prometheus.Metric) {
 	ch.mSamplesCurrentBytes.Collect(c)
 	ch.mSamplesCurrentVirtualBytes.Collect(c)
 	ch.mWrittenTimeSeries.Collect(c)
-	ch.mWrittenSamples.Collect(c)
 }
 
 func (ch *clickHouse) Read(ctx context.Context, queries []base.Query) (*prompb.ReadResponse, error) {
@@ -451,7 +446,6 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) erro
 	}
 
 	// write samples
-	var samples int
 	err := inTransaction(ctx, ch.db, func(tx *sql.Tx) error {
 		query := fmt.Sprintf(`INSERT INTO %s.samples (fingerprint, timestamp_ms, value) VALUES (?, ?, ?)`, ch.database)
 		var stmt *sql.Stmt
@@ -471,7 +465,6 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) erro
 				if _, err := stmt.ExecContext(ctx, args...); err != nil {
 					return errors.WithStack(err)
 				}
-				samples++
 			}
 		}
 
@@ -481,9 +474,11 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) erro
 		return err
 	}
 
-	ch.mWrittenTimeSeries.Add(float64(len(newTimeSeries)))
-	ch.mWrittenSamples.Add(float64(samples))
-	ch.l.Debugf("Wrote %d new time series, %d samples.", len(newTimeSeries), samples)
+	n := len(newTimeSeries)
+	if n != 0 {
+		ch.mWrittenTimeSeries.Add(float64(n))
+		ch.l.Debugf("Wrote %d new time series.", n)
+	}
 	return nil
 }
 

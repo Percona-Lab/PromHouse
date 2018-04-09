@@ -114,8 +114,12 @@ func BenchmarkWrite(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		r.Seek(0, io.SeekStart)
-		_, err = h.write(nil, req)
+		if _, err = r.Seek(0, io.SeekStart); err != nil {
+			break
+		}
+		if _, err = h.write(nil, req); err != nil {
+			break
+		}
 	}
 	b.StopTimer()
 

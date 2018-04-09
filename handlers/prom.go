@@ -40,18 +40,20 @@ const (
 	subsystem = "api"
 )
 
+// PromAPI provides Prometheus Remote API handlers.
 type PromAPI struct {
 	storage base.Storage
 	l       *logrus.Entry
 
-	mReadsStarted, mWritesStarted prometheus.Counter
-	mReads, mWrites               *prometheus.SummaryVec
+	mReadsStarted prometheus.Counter
+	mReads        *prometheus.SummaryVec
 
+	mWritesStarted  prometheus.Counter
+	mWrites         *prometheus.SummaryVec
 	mWrittenSamples prometheus.Counter
 }
 
-type handler func(http.ResponseWriter, *http.Request) (time.Duration, error)
-
+// NewPromAPI creates a new PromAPI instance.
 func NewPromAPI(storage base.Storage, l *logrus.Entry) *PromAPI {
 	return &PromAPI{
 		storage: storage,
@@ -63,18 +65,19 @@ func NewPromAPI(storage base.Storage, l *logrus.Entry) *PromAPI {
 			Name:      "reads_started",
 			Help:      "Number of started reads.",
 		}),
-		mWritesStarted: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: namespace,
-			Subsystem: subsystem,
-			Name:      "writes_started",
-			Help:      "Number of started writes.",
-		}),
 		mReads: prometheus.NewSummaryVec(prometheus.SummaryOpts{
 			Namespace: namespace,
 			Subsystem: subsystem,
 			Name:      "reads",
 			Help:      "Durations of reads by result type: ok, canceled, other.",
 		}, []string{"type"}),
+
+		mWritesStarted: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "writes_started",
+			Help:      "Number of started writes.",
+		}),
 		mWrites: prometheus.NewSummaryVec(prometheus.SummaryOpts{
 			Namespace: namespace,
 			Subsystem: subsystem,
@@ -90,6 +93,11 @@ func NewPromAPI(storage base.Storage, l *logrus.Entry) *PromAPI {
 	}
 }
 
+// Describe sends the super-set of all possible descriptors of metrics
+// collected by this Collector to the provided channel and returns once
+// the last descriptor has been sent.
+//
+// It implements prometheus.Collector interface.
 func (p *PromAPI) Describe(c chan<- *prometheus.Desc) {
 	p.mReadsStarted.Describe(c)
 	p.mWritesStarted.Describe(c)
@@ -98,6 +106,11 @@ func (p *PromAPI) Describe(c chan<- *prometheus.Desc) {
 	p.mWrittenSamples.Describe(c)
 }
 
+// Collect is called by the Prometheus registry when collecting
+// metrics. The implementation sends each collected metric via the
+// provided channel and returns once the last metric has been sent.
+//
+// It implements prometheus.Collector interface.
 func (p *PromAPI) Collect(c chan<- prometheus.Metric) {
 	p.mReadsStarted.Collect(c)
 	p.mWritesStarted.Collect(c)
@@ -114,7 +127,8 @@ var snappyPool = sync.Pool{
 	},
 }
 
-func readPB(req *http.Request, pb proto.Message) error {
+// readRequest reads snappy-compressed protobuf request.
+func readRequest(req *http.Request, pb proto.Message) error {
 	compressed, err := ioutil.ReadAll(req.Body)
 	if err != nil {
 		return err
@@ -130,6 +144,7 @@ func readPB(req *http.Request, pb proto.Message) error {
 	return err
 }
 
+// convertReadRequest converts protobuf read request into a slice of storage queries.
 func (p *PromAPI) convertReadRequest(request *prompb.ReadRequest) []base.Query {
 	queries := make([]base.Query, len(request.Queries))
 	for i, rq := range request.Queries {
@@ -151,7 +166,7 @@ func (p *PromAPI) convertReadRequest(request *prompb.ReadRequest) []base.Query {
 			case prompb.LabelMatcher_NRE:
 				t = base.MatchNotRegexp
 			default:
-				p.l.Panicf("expectation failed: unexpected matcher %d", m.Type)
+				p.l.Panicf("convertReadRequest: unexpected matcher %d", m.Type)
 			}
 
 			q.Matchers[j] = base.Matcher{
@@ -167,6 +182,7 @@ func (p *PromAPI) convertReadRequest(request *prompb.ReadRequest) []base.Query {
 	return queries
 }
 
+// errResponseType converts given error to short string used as metric label value.
 func errResponseType(err error) string {
 	switch err {
 	case nil:
@@ -178,7 +194,8 @@ func errResponseType(err error) string {
 	}
 }
 
-func (p *PromAPI) wrap(h handler) http.HandlerFunc {
+// wrap wraps API handler with logging and profiling.
+func (p *PromAPI) wrap(h func(http.ResponseWriter, *http.Request) (time.Duration, error)) http.HandlerFunc {
 	return func(rw http.ResponseWriter, req *http.Request) {
 		// add profile labels to request's context
 		ctx := req.Context()
@@ -199,8 +216,8 @@ func (p *PromAPI) wrap(h handler) http.HandlerFunc {
 	}
 }
 
-func (p *PromAPI) Read(http.ResponseWriter, *http.Request)  { p.wrap(p.read) }
-func (p *PromAPI) Write(http.ResponseWriter, *http.Request) { p.wrap(p.write) }
+// Read implements Prometheus Remote API Read call.
+func (p *PromAPI) Read(http.ResponseWriter, *http.Request) { p.wrap(p.read) }
 
 func (p *PromAPI) read(rw http.ResponseWriter, req *http.Request) (dur time.Duration, err error) {
 	// track time and response status
@@ -212,7 +229,7 @@ func (p *PromAPI) read(rw http.ResponseWriter, req *http.Request) (dur time.Dura
 	}()
 
 	var request prompb.ReadRequest
-	if err = readPB(req, &request); err != nil {
+	if err = readRequest(req, &request); err != nil {
 		return
 	}
 
@@ -243,6 +260,9 @@ func (p *PromAPI) read(rw http.ResponseWriter, req *http.Request) (dur time.Dura
 	return
 }
 
+// Write implements Prometheus Remote API Write call.
+func (p *PromAPI) Write(http.ResponseWriter, *http.Request) { p.wrap(p.write) }
+
 func (p *PromAPI) write(rw http.ResponseWriter, req *http.Request) (dur time.Duration, err error) {
 	// track time and response status
 	p.mWritesStarted.Inc()
@@ -253,7 +273,7 @@ func (p *PromAPI) write(rw http.ResponseWriter, req *http.Request) (dur time.Dur
 	}()
 
 	var request prompb.WriteRequest
-	if err = readPB(req, &request); err != nil {
+	if err = readRequest(req, &request); err != nil {
 		return
 	}
 	err = p.storage.Write(req.Context(), &request)
@@ -273,11 +293,5 @@ func (p *PromAPI) write(rw http.ResponseWriter, req *http.Request) (dur time.Dur
 	return
 }
 
-// check interfaces
-var (
-	_ prometheus.Collector = (*PromAPI)(nil)
-	_ handler              = (*PromAPI)(nil).read
-	_ handler              = (*PromAPI)(nil).write
-	_ http.HandlerFunc     = (*PromAPI)(nil).Read
-	_ http.HandlerFunc     = (*PromAPI)(nil).Write
-)
+// check interface
+var _ prometheus.Collector = (*PromAPI)(nil)

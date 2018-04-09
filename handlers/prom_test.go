@@ -18,7 +18,6 @@ package handlers
 
 import (
 	"bytes"
-	"context"
 	"io"
 	"net/http"
 	"testing"
@@ -96,7 +95,8 @@ func TestWrite(t *testing.T) {
 	r := bytes.NewReader(snappy.Encode(nil, data))
 	req, err := http.NewRequest("", "", r)
 	require.NoError(t, err)
-	require.NoError(t, h.Write(context.Background(), nil, req))
+	_, err = h.write(nil, req)
+	require.NoError(t, err)
 }
 
 func BenchmarkWrite(b *testing.B) {
@@ -115,7 +115,7 @@ func BenchmarkWrite(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		r.Seek(0, io.SeekStart)
-		err = h.Write(context.Background(), nil, req)
+		_, err = h.write(nil, req)
 	}
 	b.StopTimer()
 

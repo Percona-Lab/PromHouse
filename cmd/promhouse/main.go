@@ -30,7 +30,6 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
-	"runtime/pprof"
 	"strings"
 	"sync"
 	"syscall"
@@ -70,27 +69,10 @@ func runPromServer(ctx context.Context) {
 	prometheus.MustRegister(promAPI)
 
 	mux := http.NewServeMux()
-	handleFunc := func(pattern string, handler func(context.Context, http.ResponseWriter, *http.Request) error) {
-		mux.HandleFunc(pattern, func(rw http.ResponseWriter, req *http.Request) {
-			labels := pprof.Labels("path", req.URL.Path)
-			pprof.Do(req.Context(), labels, func(ctx context.Context) {
-				start := time.Now()
-				err := handler(ctx, rw, req)
-				if err != nil {
-					http.Error(rw, err.Error(), 400)
-					logrus.Errorf("%s %s -> 400, %s (%s)", req.Method, req.URL, err, time.Since(start))
-					return
-				}
-				logrus.Infof("%s %s -> 200 (%s)", req.Method, req.URL, time.Since(start))
-			})
-		})
-	}
-
-	handleFunc("/read", promAPI.Read)
-	handleFunc("/write", promAPI.Write)
+	mux.HandleFunc("/read", promAPI.Read)
+	mux.HandleFunc("/write", promAPI.Write)
 
 	l.Printf("Starting server on http://%s/", *promAddrF)
-
 	server := &http.Server{
 		Addr:     *promAddrF,
 		ErrorLog: log.New(os.Stderr, "runPromServer: ", 0),

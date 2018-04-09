@@ -21,6 +21,7 @@ import (
 	"context"
 	"io/ioutil"
 	"net/http"
+	"runtime/pprof"
 	"sync"
 	"time"
 
@@ -48,6 +49,8 @@ type PromAPI struct {
 
 	mWrittenSamples prometheus.Counter
 }
+
+type handler func(http.ResponseWriter, *http.Request) (time.Duration, error)
 
 func NewPromAPI(storage base.Storage, l *logrus.Entry) *PromAPI {
 	return &PromAPI{
@@ -175,12 +178,37 @@ func errResponseType(err error) string {
 	}
 }
 
-func (p *PromAPI) Read(ctx context.Context, rw http.ResponseWriter, req *http.Request) (err error) {
+func (p *PromAPI) wrap(h handler) http.HandlerFunc {
+	return func(rw http.ResponseWriter, req *http.Request) {
+		// add profile labels to request's context
+		ctx := req.Context()
+		labels := pprof.Labels("path", req.URL.Path)
+		pprof.Do(ctx, labels, func(ctx context.Context) {
+			req = req.WithContext(ctx)
+
+			dur, err := h(rw, req)
+			dur = dur.Truncate(time.Millisecond)
+
+			if err != nil {
+				http.Error(rw, err.Error(), 400)
+				p.l.Errorf("%s %s -> 400, %s (%s)", req.Method, req.URL, err, dur)
+				return
+			}
+			p.l.Infof("%s %s -> 200 (%s)", req.Method, req.URL, dur)
+		})
+	}
+}
+
+func (p *PromAPI) Read(http.ResponseWriter, *http.Request)  { p.wrap(p.read) }
+func (p *PromAPI) Write(http.ResponseWriter, *http.Request) { p.wrap(p.write) }
+
+func (p *PromAPI) read(rw http.ResponseWriter, req *http.Request) (dur time.Duration, err error) {
 	// track time and response status
 	p.mReadsStarted.Inc()
 	start := time.Now()
 	defer func() {
-		p.mReads.WithLabelValues(errResponseType(err)).Observe(time.Since(start).Seconds())
+		dur = time.Since(start)
+		p.mReads.WithLabelValues(errResponseType(err)).Observe(dur.Seconds())
 	}()
 
 	var request prompb.ReadRequest
@@ -194,8 +222,8 @@ func (p *PromAPI) Read(ctx context.Context, rw http.ResponseWriter, req *http.Re
 		p.l.Infof("Query %d: %s", i+1, q)
 	}
 	var response *prompb.ReadResponse
-	if response, err = p.storage.Read(ctx, queries); err != nil {
-		return err
+	if response, err = p.storage.Read(req.Context(), queries); err != nil {
+		return
 	}
 	p.l.Debugf("Response data:\n%s", response)
 
@@ -215,19 +243,20 @@ func (p *PromAPI) Read(ctx context.Context, rw http.ResponseWriter, req *http.Re
 	return
 }
 
-func (p *PromAPI) Write(ctx context.Context, rw http.ResponseWriter, req *http.Request) (err error) {
+func (p *PromAPI) write(rw http.ResponseWriter, req *http.Request) (dur time.Duration, err error) {
 	// track time and response status
 	p.mWritesStarted.Inc()
 	start := time.Now()
 	defer func() {
-		p.mWrites.WithLabelValues(errResponseType(err)).Observe(time.Since(start).Seconds())
+		dur = time.Since(start)
+		p.mWrites.WithLabelValues(errResponseType(err)).Observe(dur.Seconds())
 	}()
 
 	var request prompb.WriteRequest
 	if err = readPB(req, &request); err != nil {
 		return
 	}
-	err = p.storage.Write(ctx, &request)
+	err = p.storage.Write(req.Context(), &request)
 
 	var samples int
 	for _, ts := range request.TimeSeries {
@@ -244,5 +273,11 @@ func (p *PromAPI) Write(ctx context.Context, rw http.ResponseWriter, req *http.R
 	return
 }
 
-// check interface
-var _ prometheus.Collector = (*PromAPI)(nil)
+// check interfaces
+var (
+	_ prometheus.Collector = (*PromAPI)(nil)
+	_ handler              = (*PromAPI)(nil).read
+	_ handler              = (*PromAPI)(nil).write
+	_ http.HandlerFunc     = (*PromAPI)(nil).Read
+	_ http.HandlerFunc     = (*PromAPI)(nil).Write
+)

@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 
 	"github.com/Percona-Lab/PromHouse/prompb"
+	"github.com/Percona-Lab/PromHouse/utils/gofuzz"
 )
 
 // marshalLabels marshals Prometheus labels into JSON, appending it to b.
@@ -54,6 +55,7 @@ func marshalLabels(labels []*prompb.Label, b []byte) []byte {
 	}
 
 	b[len(b)-1] = '}'
+	gofuzz.AddToCorpus("json", b)
 	return b
 }
 

@@ -1,4 +1,5 @@
 /.vscode/
+/go-fuzz/
 *.out
 *.test
 *.bin

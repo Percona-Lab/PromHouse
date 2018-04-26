@@ -31,28 +31,35 @@ import (
 
 func TestMarshalMetricsAndLabels(t *testing.T) {
 	for _, labels := range [][]*prompb.Label{
+		{},
 		{
-			&prompb.Label{Name: "__name__", Value: "normal"},
-			&prompb.Label{Name: "instance", Value: "foo"},
-			&prompb.Label{Name: "job", Value: "bar"},
+			{Name: "", Value: ""},
 		}, {
-			&prompb.Label{Name: "__name__", Value: "funny_1"},
-			&prompb.Label{Name: "label", Value: ""},
+			{Name: "label", Value: ""},
 		}, {
-			&prompb.Label{Name: "__name__", Value: "funny_2"},
-			&prompb.Label{Name: "label", Value: "'`\"\\"},
+			{Name: "", Value: "value"},
 		}, {
-			&prompb.Label{Name: "__name__", Value: "funny_3"},
-			&prompb.Label{Name: "label", Value: "''``\"\"\\\\"},
+			{Name: "__name__", Value: "normal"},
+			{Name: "instance", Value: "foo"},
+			{Name: "job", Value: "bar"},
 		}, {
-			&prompb.Label{Name: "__name__", Value: "funny_4"},
-			&prompb.Label{Name: "label", Value: "'''```\"\"\"\\\\\\"},
+			{Name: "__name__", Value: "funny_1"},
+			{Name: "label", Value: ""},
 		}, {
-			&prompb.Label{Name: "__name__", Value: "funny_5"},
-			&prompb.Label{Name: "label", Value: `\ \\ \\\\ \\\\`},
+			{Name: "__name__", Value: "funny_2"},
+			{Name: "label", Value: "'`\"\\"},
 		}, {
-			&prompb.Label{Name: "__name__", Value: "funny_6"},
-			&prompb.Label{Name: "label", Value: "🆗"},
+			{Name: "__name__", Value: "funny_3"},
+			{Name: "label", Value: "''``\"\"\\\\"},
+		}, {
+			{Name: "__name__", Value: "funny_4"},
+			{Name: "label", Value: "'''```\"\"\"\\\\\\"},
+		}, {
+			{Name: "__name__", Value: "funny_5"},
+			{Name: "label", Value: `\ \\ \\\\ \\\\`},
+		}, {
+			{Name: "__name__", Value: "funny_6"},
+			{Name: "label", Value: "🆗"},
 		},
 	} {
 		b1 := marshalLabels(labels, nil)

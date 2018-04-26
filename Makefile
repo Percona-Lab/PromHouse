@@ -3,6 +3,7 @@ all: test
 init:
 	go get -u github.com/AlekSi/gocoverutil
 	go get -u gopkg.in/alecthomas/gometalinter.v2
+	go get -u github.com/dvyukov/go-fuzz/...
 	gometalinter.v2 --install
 
 protos:
@@ -42,6 +43,10 @@ cover: install
 
 check: install
 	-gometalinter.v2 --tests --vendor --skip=prompb --deadline=300s --sort=linter ./...
+
+gofuzz: test
+	go-fuzz-build -func=FuzzJSON -o=json-fuzz.zip github.com/Percona-Lab/PromHouse/storages/clickhouse
+	go-fuzz -bin=json-fuzz.zip -workdir=go-fuzz/json
 
 env-run:
 	docker-compose -f misc/docker-compose.yml -p promhouse up

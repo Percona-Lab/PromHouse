@@ -141,7 +141,7 @@ func main() {
 		instancesF              = kingpin.Flag("instances", "Number of instances to generate").Default("100").Int()
 		spreadF                 = duration.FromFlag(kingpin.Flag("spread", "Spread metrics over that interval").Default("90d"))
 		intervalF               = duration.FromFlag(kingpin.Flag("interval", "Spread metrics step").Default("1s"))
-		debugF                  = kingpin.Flag("debug", "Enable debug outout").Bool()
+		debugF                  = kingpin.Flag("debug", "Enable debug output").Bool()
 	)
 	kingpin.Parse()
 

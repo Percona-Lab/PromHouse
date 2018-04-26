@@ -49,7 +49,7 @@ func main() {
 		readPrometheusMaxTSF = kingpin.Flag("read-prometheus-max-ts", "Maximum number of time series to read from Prometheus").Int()
 		writeFileF           = kingpin.Flag("write-file", "Write to a given file").String()
 		writePromHouseF      = kingpin.Flag("write-promhouse", "Write to a given PromHouse").String()
-		debugF               = kingpin.Flag("debug", "Enable debug outout").Bool()
+		debugF               = kingpin.Flag("debug", "Enable debug output").Bool()
 	)
 	kingpin.Parse()
 

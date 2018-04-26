@@ -145,8 +145,8 @@ func main() {
 	var (
 		promAddrF  = kingpin.Flag("listen-prom-addr", "Prometheus remote API server listen address").Default("127.0.0.1:7781").String()
 		debugAddrF = kingpin.Flag("listen-debug-addr", "Debug server listen address").Default("127.0.0.1:7782").String()
-		debugF     = kingpin.Flag("debug", "Enable debug logging").Bool()
 		dropF      = kingpin.Flag("drop", "Drop existing ClickHouse schema").Bool()
+		debugF     = kingpin.Flag("debug", "Enable debug logging").Bool()
 	)
 	kingpin.Parse()
 

@@ -135,13 +135,13 @@ func main() {
 	var (
 		storageF                = kingpin.Flag("remote", "Remote storage write endpoint").Default("http://127.0.0.1:7781/write").String()
 		writersF                = kingpin.Flag("writers", "Number of concurrent remote storage writers").Default("4").Int()
-		debugF                  = kingpin.Flag("debug", "Enable debug outout").Bool()
 		upstreamF               = kingpin.Flag("upstream", "Upstream metrics endpoint").Default("http://127.0.0.1:9116/metrics").String()
 		upstreamJobF            = kingpin.Flag("upstream-job", "Upstream job name").Default("promhouse-spread").String()
 		upstreamScrapeIntervalF = duration.FromFlag(kingpin.Flag("upstream-scrape-interval", "How often scrape upstream for metrics").Default("1s"))
 		instancesF              = kingpin.Flag("instances", "Number of instances to generate").Default("100").Int()
 		spreadF                 = duration.FromFlag(kingpin.Flag("spread", "Spread metrics over that interval").Default("90d"))
 		intervalF               = duration.FromFlag(kingpin.Flag("interval", "Spread metrics step").Default("1s"))
+		debugF                  = kingpin.Flag("debug", "Enable debug outout").Bool()
 	)
 	kingpin.Parse()
 

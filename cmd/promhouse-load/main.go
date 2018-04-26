@@ -44,12 +44,12 @@ func main() {
 	var (
 		lastF                = duration.FromFlag(kingpin.Flag("read-prometheus-last", "Read from Prometheus since that time ago").Default("30d"))
 		stepF                = duration.FromFlag(kingpin.Flag("read-prometheus-step", "Interval for a single request to Prometheus").Default("3h"))
-		debugF               = kingpin.Flag("debug", "Enable debug outout").Bool()
 		readFileF            = kingpin.Flag("read-file", "Read from a given file").String()
 		readPrometheusF      = kingpin.Flag("read-prometheus", "Read from a given Prometheus").String()
 		readPrometheusMaxTSF = kingpin.Flag("read-prometheus-max-ts", "Maximum number of time series to read from Prometheus").Int()
 		writeFileF           = kingpin.Flag("write-file", "Write to a given file").String()
 		writePromHouseF      = kingpin.Flag("write-promhouse", "Write to a given PromHouse").String()
+		debugF               = kingpin.Flag("debug", "Enable debug outout").Bool()
 	)
 	kingpin.Parse()
 

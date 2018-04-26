@@ -62,8 +62,8 @@ func runPromServer(ctx context.Context, addr string, drop bool) {
 	prometheus.MustRegister(promAPI)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/read", promAPI.Read)
-	mux.HandleFunc("/write", promAPI.Write)
+	mux.HandleFunc("/read", promAPI.Read())
+	mux.HandleFunc("/write", promAPI.Write())
 
 	l.Printf("Starting server on http://%s/", addr)
 	server := &http.Server{

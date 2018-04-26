@@ -216,8 +216,8 @@ func (p *PromAPI) wrap(h func(http.ResponseWriter, *http.Request) (time.Duration
 	}
 }
 
-// Read implements Prometheus Remote API Read call.
-func (p *PromAPI) Read(http.ResponseWriter, *http.Request) { p.wrap(p.read) }
+// Read returns HTTP handler implementing Prometheus Remote API Read call.
+func (p *PromAPI) Read() http.HandlerFunc { return p.wrap(p.read) }
 
 func (p *PromAPI) read(rw http.ResponseWriter, req *http.Request) (dur time.Duration, err error) {
 	// track time and response status
@@ -260,8 +260,8 @@ func (p *PromAPI) read(rw http.ResponseWriter, req *http.Request) (dur time.Dura
 	return
 }
 
-// Write implements Prometheus Remote API Write call.
-func (p *PromAPI) Write(http.ResponseWriter, *http.Request) { p.wrap(p.write) }
+// Write returns HTTP handler implementing Prometheus Remote API Write call.
+func (p *PromAPI) Write() http.HandlerFunc { return p.wrap(p.write) }
 
 func (p *PromAPI) write(rw http.ResponseWriter, req *http.Request) (dur time.Duration, err error) {
 	// track time and response status

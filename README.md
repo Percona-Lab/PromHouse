@@ -67,6 +67,7 @@ local storage compresses 16 bytes (timestamp and value) per sample to [1.37](htt
 
 ### Important ClickHouse issues
 
+* [#167 update records](https://github.com/yandex/ClickHouse/issues/167) should significantly simplify downsampling implementation.
 * [#838 Feature request: add ability to apply delta or delta-of-delta encoding to numeric columns before compression](https://github.com/yandex/ClickHouse/issues/838) should improve compression rate.
 
 

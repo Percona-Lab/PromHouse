@@ -32,10 +32,10 @@ bench: install
 	go test -bench=. -benchtime=10s -benchmem -v ./...
 
 run: install
-	promhouse -debug
+	promhouse --debug
 
 run-race: install-race
-	promhouse -debug
+	promhouse --debug
 
 cover: install
 	gocoverutil test -v -covermode=count ./...

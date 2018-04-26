@@ -68,7 +68,6 @@ func marshalLabels(labels []*prompb.Label, b []byte) []byte {
 
 // unmarshalLabels unmarshals JSON into Prometheus labels.
 // It does not preserves an order.
-// TODO optimize?
 func unmarshalLabels(b []byte) ([]*prompb.Label, error) {
 	m := make(map[string]string)
 	if err := json.Unmarshal(b, &m); err != nil {

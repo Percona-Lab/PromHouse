@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"context"
 	_ "expvar"
-	"flag"
 	"html/template"
 	"log"
 	"net/http"
@@ -38,6 +37,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
+	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/Percona-Lab/PromHouse/handlers"
 	"github.com/Percona-Lab/PromHouse/storages/clickhouse"
@@ -47,18 +47,11 @@ const (
 	shutdownTimeout = 3 * time.Second
 )
 
-var (
-	promAddrF  = flag.String("listen-prom-addr", "127.0.0.1:7781", "Prometheus remote API server listen address")
-	debugAddrF = flag.String("listen-debug-addr", "127.0.0.1:7782", "Debug server listen address")
-	debugF     = flag.Bool("debug", false, "Enable debug logging")
-	dropF      = flag.Bool("drop", false, "Drop existing ClickHouse schema")
-)
-
 // runPromServer runs Prometheus API server until context is canceled, then gracefully stops it.
-func runPromServer(ctx context.Context) {
+func runPromServer(ctx context.Context, addr string, drop bool) {
 	l := logrus.WithField("component", "api")
 
-	storage, err := clickhouse.New("tcp://127.0.0.1:9000", "prometheus", *dropF)
+	storage, err := clickhouse.New("tcp://127.0.0.1:9000", "prometheus", drop)
 	if err != nil {
 		l.Panic(err)
 	}
@@ -72,9 +65,9 @@ func runPromServer(ctx context.Context) {
 	mux.HandleFunc("/read", promAPI.Read)
 	mux.HandleFunc("/write", promAPI.Write)
 
-	l.Printf("Starting server on http://%s/", *promAddrF)
+	l.Printf("Starting server on http://%s/", addr)
 	server := &http.Server{
-		Addr:     *promAddrF,
+		Addr:     addr,
 		ErrorLog: log.New(os.Stderr, "runPromServer: ", 0),
 		Handler:  mux,
 	}
@@ -94,7 +87,7 @@ func runPromServer(ctx context.Context) {
 }
 
 // runDebugServer runs debug server until context is canceled, then gracefully stops it.
-func runDebugServer(ctx context.Context) {
+func runDebugServer(ctx context.Context, addr string) {
 	l := logrus.WithField("component", "debug")
 
 	http.Handle("/debug/metrics", promhttp.Handler())
@@ -103,7 +96,7 @@ func runDebugServer(ctx context.Context) {
 		"/debug/metrics", "/debug/vars", "/debug/requests", "/debug/events", "/debug/pprof",
 	}
 	for i, h := range handlers {
-		handlers[i] = "http://" + *debugAddrF + h
+		handlers[i] = "http://" + addr + h
 	}
 
 	var buf bytes.Buffer
@@ -124,10 +117,10 @@ func runDebugServer(ctx context.Context) {
 	http.HandleFunc("/debug", func(rw http.ResponseWriter, req *http.Request) {
 		rw.Write(buf.Bytes())
 	})
-	l.Printf("Starting server on http://%s/debug\nRegistered handlers:\n\t%s", *debugAddrF, strings.Join(handlers, "\n\t"))
+	l.Printf("Starting server on http://%s/debug\nRegistered handlers:\n\t%s", addr, strings.Join(handlers, "\n\t"))
 
 	server := &http.Server{
-		Addr:     *debugAddrF,
+		Addr:     addr,
 		ErrorLog: log.New(os.Stderr, "runDebugServer: ", 0),
 	}
 	go func() {
@@ -148,7 +141,15 @@ func runDebugServer(ctx context.Context) {
 func main() {
 	log.SetFlags(0)
 	log.SetPrefix("stdlog: ")
-	flag.Parse()
+
+	var (
+		promAddrF  = kingpin.Flag("listen-prom-addr", "Prometheus remote API server listen address").Default("127.0.0.1:7781").String()
+		debugAddrF = kingpin.Flag("listen-debug-addr", "Debug server listen address").Default("127.0.0.1:7782").String()
+		debugF     = kingpin.Flag("debug", "Enable debug logging").Bool()
+		dropF      = kingpin.Flag("drop", "Drop existing ClickHouse schema").Bool()
+	)
+	kingpin.Parse()
+
 	logrus.SetLevel(logrus.InfoLevel)
 	if *debugF {
 		logrus.SetLevel(logrus.DebugLevel)
@@ -175,11 +176,11 @@ func main() {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		runPromServer(ctx)
+		runPromServer(ctx, *promAddrF, *dropF)
 	}()
 	go func() {
 		defer wg.Done()
-		runDebugServer(ctx)
+		runDebugServer(ctx, *debugAddrF)
 	}()
 	wg.Wait()
 }

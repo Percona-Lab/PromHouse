@@ -18,7 +18,6 @@ package main
 
 import (
 	"bytes"
-	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -34,8 +33,11 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"
+	"github.com/sirupsen/logrus"
+	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/Percona-Lab/PromHouse/prompb"
+	"github.com/Percona-Lab/PromHouse/utils/duration"
 )
 
 type client struct {
@@ -128,19 +130,25 @@ func (c *client) write(request *prompb.WriteRequest) error {
 
 func main() {
 	log.SetFlags(0)
+	log.SetPrefix("stdlog: ")
 
 	var (
-		storageF                = flag.String("remote", "http://127.0.0.1:7781/write", "Remote storage write endpoint")
-		writersF                = flag.Int("writers", 4, "Number of concurrent remote storage writers")
-		upstreamF               = flag.String("upstream", "http://127.0.0.1:9116/metrics", "Upstream metrics endpoint")
-		upstreamJobF            = flag.String("upstream-job", "promhouse-spread", "Upstream job name")
-		upstreamScrapeIntervalF = flag.Duration("upstream-scrape-interval", time.Second, "How often scrape upstream for metrics")
-		instancesF              = flag.Int("instances", 100, "Number of instances to generate")
-		spreadF                 = model.Duration(90 * 24 * time.Hour)
-		intervalF               = flag.Duration("interval", time.Second, "Spread metrics step")
+		storageF                = kingpin.Flag("remote", "Remote storage write endpoint").Default("http://127.0.0.1:7781/write").String()
+		writersF                = kingpin.Flag("writers", "Number of concurrent remote storage writers").Default("4").Int()
+		debugF                  = kingpin.Flag("debug", "Enable debug outout").Bool()
+		upstreamF               = kingpin.Flag("upstream", "Upstream metrics endpoint").Default("http://127.0.0.1:9116/metrics").String()
+		upstreamJobF            = kingpin.Flag("upstream-job", "Upstream job name").Default("promhouse-spread").String()
+		upstreamScrapeIntervalF = duration.FromFlag(kingpin.Flag("upstream-scrape-interval", "How often scrape upstream for metrics").Default("1s"))
+		instancesF              = kingpin.Flag("instances", "Number of instances to generate").Default("100").Int()
+		spreadF                 = duration.FromFlag(kingpin.Flag("spread", "Spread metrics over that interval").Default("90d"))
+		intervalF               = duration.FromFlag(kingpin.Flag("interval", "Spread metrics step").Default("1s"))
 	)
-	flag.Var(&spreadF, "spread", "Spread metrics over that interval")
-	flag.Parse()
+	kingpin.Parse()
+
+	logrus.SetLevel(logrus.InfoLevel)
+	if *debugF {
+		logrus.SetLevel(logrus.DebugLevel)
+	}
 
 	var sharedVector model.Vector
 	var rw sync.RWMutex
@@ -184,7 +192,7 @@ func main() {
 	}
 
 	stop := time.Now().Truncate(time.Minute).UTC()
-	start := stop.Add(-time.Duration(spreadF))
+	start := stop.Add(-*spreadF)
 	steps := int(stop.Sub(start) / *intervalF)
 	timestamp := start
 	instanceFormat := fmt.Sprintf("instance-%%0%dd", len(strconv.Itoa(*instancesF-1)))

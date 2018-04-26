@@ -17,16 +17,16 @@
 package main
 
 import (
-	"flag"
 	"io"
 	"log"
 	"os"
 	"time"
 
-	"github.com/prometheus/common/model"
 	"github.com/sirupsen/logrus"
+	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/Percona-Lab/PromHouse/prompb"
+	"github.com/Percona-Lab/PromHouse/utils/duration"
 )
 
 type tsReader interface {
@@ -41,20 +41,19 @@ func main() {
 	log.SetFlags(0)
 	log.SetPrefix("stdlog: ")
 
-	lastF := model.Duration(30 * 24 * time.Hour)
-	flag.Var(&lastF, "read-prometheus-last", "Read from Prometheus since that time ago")
-	stepF := model.Duration(3 * time.Hour)
-	flag.Var(&stepF, "read-prometheus-step", "Interval for a single request to Prometheus")
 	var (
-		debugF               = flag.Bool("debug", false, "Enable debug outout")
-		readFileF            = flag.String("read-file", "", "Read from a given file")
-		readPrometheusF      = flag.String("read-prometheus", "", "Read from a given Prometheus")
-		readPrometheusMaxTSF = flag.Int("read-prometheus-max-ts", 0, "Maximum number of time series to read from Prometheus")
-		writeFileF           = flag.String("write-file", "", "Write to a given file")
-		writePromHouseF      = flag.String("write-promhouse", "", "Write to a given PromHouse")
+		lastF                = duration.FromFlag(kingpin.Flag("read-prometheus-last", "Read from Prometheus since that time ago").Default("30d"))
+		stepF                = duration.FromFlag(kingpin.Flag("read-prometheus-step", "Interval for a single request to Prometheus").Default("3h"))
+		debugF               = kingpin.Flag("debug", "Enable debug outout").Bool()
+		readFileF            = kingpin.Flag("read-file", "Read from a given file").String()
+		readPrometheusF      = kingpin.Flag("read-prometheus", "Read from a given Prometheus").String()
+		readPrometheusMaxTSF = kingpin.Flag("read-prometheus-max-ts", "Maximum number of time series to read from Prometheus").Int()
+		writeFileF           = kingpin.Flag("write-file", "Write to a given file").String()
+		writePromHouseF      = kingpin.Flag("write-promhouse", "Write to a given PromHouse").String()
 	)
-	flag.Parse()
+	kingpin.Parse()
 
+	logrus.SetLevel(logrus.InfoLevel)
 	if *debugF {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
@@ -77,9 +76,9 @@ func main() {
 
 	case *readPrometheusF != "":
 		end := time.Now().Truncate(time.Minute)
-		start := end.Add(-time.Duration(lastF))
+		start := end.Add(-*lastF)
 		var err error
-		reader, err = newPrometheusClient(*readPrometheusF, start, end, time.Duration(stepF), *readPrometheusMaxTSF)
+		reader, err = newPrometheusClient(*readPrometheusF, start, end, *stepF, *readPrometheusMaxTSF)
 		if err != nil {
 			logrus.Fatal(err)
 		}

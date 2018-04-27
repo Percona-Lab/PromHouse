@@ -91,7 +91,7 @@ func TestFaker(t *testing.T) {
 
 	src := strings.NewReader(upstream)
 	var dst bytes.Buffer
-	require.NoError(t, faker.multi(&dst, src))
+	require.NoError(t, faker.generate(&dst, src))
 	expected := strings.Split(result, "\n")
 	actual := strings.Split(dst.String(), "\n")
 	assert.Equal(t, expected, actual, "=== expected:\n%s\n\n=== actual:\n%s\n", result, dst.String())

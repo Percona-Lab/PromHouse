@@ -3,6 +3,7 @@ sudo: required
 language: go
 
 go:
+  - 1.9.x
   - 1.10.x
   - master
 
@@ -25,4 +26,4 @@ script:
   - make cover
 
 after_success:
-  - bash <(curl -s https://codecov.io/bash) -X fix
+  - bash <(curl -s https://codecov.io/bash) -f cover.out -X fix -e PROM_IMAGE,PROM_CONFIG

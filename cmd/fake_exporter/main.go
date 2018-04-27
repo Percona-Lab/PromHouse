@@ -52,7 +52,7 @@ func main() {
 			return
 		}
 
-		if err = faker.multi(rw, r); err != nil {
+		if err = faker.generate(rw, r); err != nil {
 			logrus.Error(err)
 		}
 	})

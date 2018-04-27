@@ -30,13 +30,14 @@ import (
 	"github.com/prometheus/common/expfmt"
 )
 
+// faker generates new fake metrics based on upstream metrics.
 type faker struct {
 	instanceTemplate string
 	instances        int
+	sort             bool // set to true for stable results (for example, in tests)
 
-	m    sync.Mutex
-	rnd  *rand.Rand
-	sort bool // set to true for stable results (for example, in tests)
+	m   sync.Mutex
+	rnd *rand.Rand
 }
 
 func newFaker(instanceTemplate string, instances int) *faker {
@@ -47,6 +48,7 @@ func newFaker(instanceTemplate string, instances int) *faker {
 	}
 }
 
+// fakeValue slightly changes upstream's value, handling special cases.
 func (f *faker) fakeValue(vp *float64) {
 	v := *vp
 
@@ -71,10 +73,10 @@ func (f *faker) fakeValue(vp *float64) {
 	}
 
 	*vp = v
-	return
 }
 
-func (f *faker) multi(dst io.Writer, src io.Reader) error {
+// generate reads upstream metrics from src, generates new metrics and writes them to dst.
+func (f *faker) generate(dst io.Writer, src io.Reader) error {
 	// decode upstream metrics, add instance label placeholder
 	d := expfmt.NewDecoder(src, expfmt.FmtText)
 	upstream := make([]*dto.MetricFamily, 0, 1000)
@@ -124,6 +126,8 @@ func (f *faker) multi(dst io.Writer, src io.Reader) error {
 					f.fakeValue(nm.Gauge.Value)
 				case dto.MetricType_UNTYPED:
 					f.fakeValue(nm.Untyped.Value)
+				default:
+					// skip histograms and summaries for now
 				}
 
 				nmf.Metric[instance*len(mf.Metric)+i] = nm

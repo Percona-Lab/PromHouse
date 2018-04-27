@@ -49,7 +49,7 @@ go_memstats_alloc_bytes_total 1.293258864e+09
 node_netstat_TcpExt_TCPSackMerged 0
 `
 
-	dup = `# HELP go_gc_duration_seconds A summary of the GC invocation durations.
+	result = `# HELP go_gc_duration_seconds A summary of the GC invocation durations.
 # TYPE go_gc_duration_seconds summary
 go_gc_duration_seconds{instance="instance1",quantile="0"} 6.91e-05
 go_gc_duration_seconds{instance="instance1",quantile="0.25"} 0.0001714
@@ -86,13 +86,13 @@ node_netstat_TcpExt_TCPSackMerged{instance="instance2"} 0
 
 func TestFaker(t *testing.T) {
 	faker := newFaker("instance%d", 2)
-	faker.rnd.Seed(1)
 	faker.sort = true
+	faker.rnd.Seed(1)
 
 	src := strings.NewReader(upstream)
 	var dst bytes.Buffer
 	require.NoError(t, faker.multi(&dst, src))
-	expected := strings.Split(dup, "\n")
+	expected := strings.Split(result, "\n")
 	actual := strings.Split(dst.String(), "\n")
-	assert.Equal(t, expected, actual, "=== expected:\n%s\n\n=== actual:\n%s\n", dup, dst.String())
+	assert.Equal(t, expected, actual, "=== expected:\n%s\n\n=== actual:\n%s\n", result, dst.String())
 }

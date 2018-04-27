@@ -24,6 +24,7 @@ import (
 	"net/http"
 )
 
+// client for upstream exporter.
 type client struct {
 	exporter string
 	http     *http.Client

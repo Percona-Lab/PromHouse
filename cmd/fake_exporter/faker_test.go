@@ -41,6 +41,12 @@ go_goroutines 38
 # HELP go_info Information about the Go environment.
 # TYPE go_info gauge
 go_info{version="go1.9.2"} 1
+# HELP go_memstats_alloc_bytes_total Total number of bytes allocated, even if freed.
+# TYPE go_memstats_alloc_bytes_total counter
+go_memstats_alloc_bytes_total 1.293258864e+09
+# HELP node_netstat_TcpExt_TCPSackMerged Statistic TcpExtTCPSackMerged.
+# TYPE node_netstat_TcpExt_TCPSackMerged untyped
+node_netstat_TcpExt_TCPSackMerged 0
 `
 
 	dup = `# HELP go_gc_duration_seconds A summary of the GC invocation durations.
@@ -62,17 +68,31 @@ go_gc_duration_seconds_count{instance="instance2"} 28
 # HELP go_goroutines Number of goroutines that currently exist.
 # TYPE go_goroutines gauge
 go_goroutines{instance="instance1"} 38
-go_goroutines{instance="instance2"} 38
+go_goroutines{instance="instance2"} 41
 # HELP go_info Information about the Go environment.
 # TYPE go_info gauge
-go_info{version="go1.9.2",instance="instance1"} 1
-go_info{version="go1.9.2",instance="instance2"} 1
+go_info{instance="",version="instance1"} 1
+go_info{instance="",version="instance2"} 1
+# HELP go_memstats_alloc_bytes_total Total number of bytes allocated, even if freed.
+# TYPE go_memstats_alloc_bytes_total counter
+go_memstats_alloc_bytes_total{instance="instance1"} 1.335822613e+09
+go_memstats_alloc_bytes_total{instance="instance2"} 1.277148528e+09
+# HELP node_netstat_TcpExt_TCPSackMerged Statistic TcpExtTCPSackMerged.
+# TYPE node_netstat_TcpExt_TCPSackMerged untyped
+node_netstat_TcpExt_TCPSackMerged{instance="instance1"} 0
+node_netstat_TcpExt_TCPSackMerged{instance="instance2"} 0
 `
 )
 
-func TestMulti(t *testing.T) {
+func TestFaker(t *testing.T) {
+	faker := newFaker("instance%d", 2)
+	faker.rnd.Seed(1)
+	faker.sort = true
+
 	src := strings.NewReader(upstream)
 	var dst bytes.Buffer
-	require.NoError(t, multi(&dst, src, "instance%d", 2))
-	assert.Equal(t, strings.Split(dup, "\n"), strings.Split(dst.String(), "\n"))
+	require.NoError(t, faker.multi(&dst, src))
+	expected := strings.Split(dup, "\n")
+	actual := strings.Split(dst.String(), "\n")
+	assert.Equal(t, expected, actual, "=== expected:\n%s\n\n=== actual:\n%s\n", dup, dst.String())
 }

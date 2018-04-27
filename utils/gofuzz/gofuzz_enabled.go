@@ -37,7 +37,7 @@ func init() {
 // AddToCorpus adds data to named go-fuzz corpus when "gofuzzgen" build tag is used.
 func AddToCorpus(name string, data []byte) {
 	path := filepath.Join(root, name, "corpus")
-	_ = os.MkdirAll(path, 0777)
+	_ = os.MkdirAll(path, 0700)
 
 	path = filepath.Join(path, fmt.Sprintf("test-%x", sha1.Sum(data)))
 	if err := ioutil.WriteFile(path, data, 0666); err != nil {

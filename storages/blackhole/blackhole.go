@@ -47,5 +47,7 @@ func (m *blackhole) Write(ctx context.Context, data *prompb.WriteRequest) error 
 	return nil
 }
 
-// check interface
-var _ base.Storage = (*blackhole)(nil)
+// check interfaces
+var (
+	_ base.Storage = (*blackhole)(nil)
+)

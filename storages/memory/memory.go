@@ -114,5 +114,7 @@ func (m *memory) Write(ctx context.Context, data *prompb.WriteRequest) error {
 	return nil
 }
 
-// check interface
-var _ base.Storage = (*memory)(nil)
+// check interfaces
+var (
+	_ base.Storage = (*memory)(nil)
+)

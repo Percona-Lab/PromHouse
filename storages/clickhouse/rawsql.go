@@ -102,5 +102,7 @@ func (ch *clickHouse) readRawSQL(ctx context.Context, query string, ts int64) (*
 	}, nil
 }
 
-// check interface
-var _ sql.Scanner = (*scanner)(nil)
+// check interfaces
+var (
+	_ sql.Scanner = (*scanner)(nil)
+)

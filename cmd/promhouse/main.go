@@ -164,11 +164,11 @@ func main() {
 	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT)
 	go func() {
 		s := <-signals
-		l.Warnf("Got %v (%d) signal, shutting down...", s, s)
+		l.Warnf("Got %v (%d) signal, shutting down...", s, s.(syscall.Signal))
 		cancel()
 
 		s = <-signals
-		l.Panicf("Got %v (%d) signal, exiting!", s, s)
+		l.Panicf("Got %v (%d) signal, exiting!", s, s.(syscall.Signal))
 	}()
 
 	// start servers, wait for them to exit

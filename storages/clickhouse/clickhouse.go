@@ -482,5 +482,7 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) erro
 	return nil
 }
 
-// check interface
-var _ base.Storage = (*clickHouse)(nil)
+// check interfaces
+var (
+	_ base.Storage = (*clickHouse)(nil)
+)

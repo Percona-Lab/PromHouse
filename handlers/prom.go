@@ -293,5 +293,7 @@ func (p *PromAPI) write(rw http.ResponseWriter, req *http.Request) (dur time.Dur
 	return
 }
 
-// check interface
-var _ prometheus.Collector = (*PromAPI)(nil)
+// check interfaces
+var (
+	_ prometheus.Collector = (*PromAPI)(nil)
+)

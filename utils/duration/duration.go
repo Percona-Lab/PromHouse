@@ -17,16 +17,13 @@
 package duration
 
 import (
-	"time"
-
 	"github.com/prometheus/common/model"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
-// FromFlag is custom kingpin parser for model.Duration flags, returning *time.Duration.
-func FromFlag(s kingpin.Settings) *time.Duration {
-	var md model.Duration
-	s.SetValue(&md)
-	d := time.Duration(md)
-	return &d
+// FromFlag is custom kingpin parser for model.Duration flags.
+func FromFlag(s kingpin.Settings) *model.Duration {
+	d := new(model.Duration)
+	s.SetValue(d)
+	return d
 }

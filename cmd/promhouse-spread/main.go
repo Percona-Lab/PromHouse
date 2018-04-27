@@ -156,7 +156,7 @@ func main() {
 
 	// run upstream scraper
 	go func() {
-		for range time.Tick(*upstreamScrapeIntervalF) {
+		for range time.Tick(time.Duration(*upstreamScrapeIntervalF)) {
 			v, err := c.get()
 			if err != nil {
 				log.Fatal(err)
@@ -192,8 +192,8 @@ func main() {
 	}
 
 	stop := time.Now().Truncate(time.Minute).UTC()
-	start := stop.Add(-*spreadF)
-	steps := int(stop.Sub(start) / *intervalF)
+	start := stop.Add(-time.Duration(*spreadF))
+	steps := int(stop.Sub(start) / time.Duration(*intervalF))
 	timestamp := start
 	instanceFormat := fmt.Sprintf("instance-%%0%dd", len(strconv.Itoa(*instancesF-1)))
 	nextReport := time.Now()
@@ -202,7 +202,7 @@ func main() {
 		v := sharedVector
 		rw.RUnlock()
 		if len(v) == 0 {
-			time.Sleep(*upstreamScrapeIntervalF)
+			time.Sleep(time.Duration(*upstreamScrapeIntervalF))
 			continue
 		}
 
@@ -252,7 +252,7 @@ func main() {
 			nextReport = time.Now().Add(5 * time.Second)
 		}
 
-		timestamp = timestamp.Add(*intervalF)
+		timestamp = timestamp.Add(time.Duration(*intervalF))
 	}
 
 	close(requests)

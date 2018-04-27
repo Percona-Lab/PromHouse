@@ -9,6 +9,12 @@ services:
     volumes:
       - ./prometheus/${PROM_CONFIG:-prom2}.yml:/etc/prometheus/prometheus.yml
 
+  node_exporter:
+    image: prom/node-exporter
+    ports:
+      - 127.0.0.1:9100:9100
+    network_mode: host
+
   clickhouse:
     image: yandex/clickhouse-server
     ports:

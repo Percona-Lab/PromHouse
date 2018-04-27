@@ -57,13 +57,13 @@ func newFileClient(f *os.File) *fileClient {
 	}
 }
 
-func (fc *fileClient) readTS() (*prompb.TimeSeries, error) {
-	if time.Since(fc.lastLog) > 10*time.Second {
-		fc.lastLog = time.Now()
-		if fc.fSize != 0 {
-			offset, err := fc.f.Seek(0, 1)
+func (client *fileClient) readTS() (*prompb.TimeSeries, error) {
+	if time.Since(client.lastLog) > 10*time.Second {
+		client.lastLog = time.Now()
+		if client.fSize != 0 {
+			offset, err := client.f.Seek(0, 1)
 			if err == nil {
-				fc.l.Infof("Read %.2f%% of the file.", float64(offset*100)/float64(fc.fSize))
+				client.l.Infof("Read %.2f%% of the file.", float64(offset*100)/float64(client.fSize))
 			}
 		}
 	}
@@ -71,46 +71,46 @@ func (fc *fileClient) readTS() (*prompb.TimeSeries, error) {
 	// read next message reusing bRead
 	var err error
 	var size uint32
-	if err = binary.Read(fc.f, binary.BigEndian, &size); err != nil {
+	if err = binary.Read(client.f, binary.BigEndian, &size); err != nil {
 		if err == io.EOF {
 			return nil, err
 		}
 		return nil, errors.Wrap(err, "failed to read message size")
 	}
-	if uint32(cap(fc.bRead)) >= size {
-		fc.bRead = fc.bRead[:size]
+	if uint32(cap(client.bRead)) >= size {
+		client.bRead = client.bRead[:size]
 	} else {
-		fc.bRead = make([]byte, size)
+		client.bRead = make([]byte, size)
 	}
-	if _, err = io.ReadFull(fc.f, fc.bRead); err != nil {
+	if _, err = io.ReadFull(client.f, client.bRead); err != nil {
 		return nil, errors.Wrap(err, "failed to read message")
 	}
 
 	// decode message reusing bDecoded
-	fc.bDecoded = fc.bDecoded[:cap(fc.bDecoded)]
-	fc.bDecoded, err = snappy.Decode(fc.bDecoded, fc.bRead)
+	client.bDecoded = client.bDecoded[:cap(client.bDecoded)]
+	client.bDecoded, err = snappy.Decode(client.bDecoded, client.bRead)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to decode message")
 	}
 
 	// unmarshal message
 	var ts prompb.TimeSeries
-	if err = proto.Unmarshal(fc.bDecoded, &ts); err != nil {
+	if err = proto.Unmarshal(client.bDecoded, &ts); err != nil {
 		return nil, errors.Wrap(err, "failed to unmarshal message")
 	}
 	return &ts, nil
 }
 
-func (fc *fileClient) writeTS(ts *prompb.TimeSeries) error {
+func (client *fileClient) writeTS(ts *prompb.TimeSeries) error {
 	// marshal message reusing bMarshaled
 	var err error
 	size := ts.Size()
-	if cap(fc.bMarshaled) >= size {
-		fc.bMarshaled = fc.bMarshaled[:size]
+	if cap(client.bMarshaled) >= size {
+		client.bMarshaled = client.bMarshaled[:size]
 	} else {
-		fc.bMarshaled = make([]byte, size)
+		client.bMarshaled = make([]byte, size)
 	}
-	size, err = ts.MarshalTo(fc.bMarshaled)
+	size, err = ts.MarshalTo(client.bMarshaled)
 	if err != nil {
 		return errors.Wrap(err, "failed to marshal message")
 	}
@@ -119,14 +119,14 @@ func (fc *fileClient) writeTS(ts *prompb.TimeSeries) error {
 	}
 
 	// encode message reusing bEncoded
-	fc.bEncoded = fc.bEncoded[:cap(fc.bEncoded)]
-	fc.bEncoded = snappy.Encode(fc.bEncoded, fc.bMarshaled[:size])
+	client.bEncoded = client.bEncoded[:cap(client.bEncoded)]
+	client.bEncoded = snappy.Encode(client.bEncoded, client.bMarshaled[:size])
 
 	// write message
-	if err = binary.Write(fc.f, binary.BigEndian, uint32(len(fc.bEncoded))); err != nil {
+	if err = binary.Write(client.f, binary.BigEndian, uint32(len(client.bEncoded))); err != nil {
 		return errors.Wrap(err, "failed to write message length")
 	}
-	if _, err = fc.f.Write(fc.bEncoded); err != nil {
+	if _, err = client.f.Write(client.bEncoded); err != nil {
 		return errors.Wrap(err, "failed to write message")
 	}
 	return nil

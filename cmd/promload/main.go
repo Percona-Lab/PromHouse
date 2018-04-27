@@ -42,14 +42,13 @@ func main() {
 	log.SetPrefix("stdlog: ")
 
 	var (
-		lastF                = duration.FromFlag(kingpin.Flag("read-prometheus-last", "Read from Prometheus since that time ago").Default("30d"))
-		stepF                = duration.FromFlag(kingpin.Flag("read-prometheus-step", "Interval for a single request to Prometheus").Default("3h"))
-		readFileF            = kingpin.Flag("read-file", "Read from a given file").String()
-		readPrometheusF      = kingpin.Flag("read-prometheus", "Read from a given Prometheus").String()
-		readPrometheusMaxTSF = kingpin.Flag("read-prometheus-max-ts", "Maximum number of time series to read from Prometheus").Int()
-		writeFileF           = kingpin.Flag("write-file", "Write to a given file").String()
-		writePromHouseF      = kingpin.Flag("write-promhouse", "Write to a given PromHouse").String()
-		debugF               = kingpin.Flag("debug", "Enable debug output").Bool()
+		fromArg = kingpin.Arg("from", "Read data from").Required().URL()
+		toArg   = kingpin.Arg("to", "Write data to").Required().URL()
+
+		lastF = duration.FromFlag(kingpin.Flag("from-last", "Remote API: read from that time ago").Default("30d"))
+		stepF = duration.FromFlag(kingpin.Flag("from-step", "Remote API: interval for a single request").Default("1m"))
+
+		debugF = kingpin.Flag("debug", "Enable debug output").Bool()
 	)
 	kingpin.Parse()
 
@@ -60,8 +59,8 @@ func main() {
 
 	var reader tsReader
 	switch {
-	case *readFileF != "":
-		f, err := os.Open(*readFileF)
+	case (*fromArg).Scheme == "":
+		f, err := os.Open((*fromArg).String())
 		if err != nil {
 			logrus.Fatal(err)
 		}
@@ -74,23 +73,17 @@ func main() {
 
 		reader = newFileClient(f)
 
-	case *readPrometheusF != "":
-		end := time.Now().Truncate(time.Minute)
-		start := end.Add(-*lastF)
-		var err error
-		reader, err = newPrometheusClient(*readPrometheusF, start, end, *stepF, *readPrometheusMaxTSF)
-		if err != nil {
-			logrus.Fatal(err)
-		}
-
 	default:
-		logrus.Fatal("No -read-* flag given.")
+		end := time.Now().Truncate(time.Minute)
+		start := end.Add(-time.Duration(*lastF))
+		logrus.Infof("Reading metrics between %s and %s with step %s.", start, end, *stepF)
+		reader = newRemoteClient((*fromArg).String(), start, end, time.Duration(*stepF))
 	}
 
 	var writer tsWriter
 	switch {
-	case *writeFileF != "":
-		f, err := os.Create(*writeFileF)
+	case (*toArg).Scheme == "":
+		f, err := os.Create((*toArg).String())
 		if err != nil {
 			logrus.Fatal(err)
 		}
@@ -103,15 +96,8 @@ func main() {
 
 		writer = newFileClient(f)
 
-	case *writePromHouseF != "":
-		var err error
-		writer, err = newpromhouseClient(*writePromHouseF)
-		if err != nil {
-			logrus.Fatal(err)
-		}
-
 	default:
-		logrus.Fatal("No -write-* flag given.")
+		writer = newRemoteClient((*toArg).String(), time.Time{}, time.Time{}, 0)
 	}
 
 	ch := make(chan *prompb.TimeSeries, 100)

@@ -19,9 +19,11 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"runtime/pprof"
+	"strings"
 	"sync"
 	"time"
 
@@ -195,7 +197,7 @@ func errResponseType(err error) string {
 }
 
 // wrap wraps API handler with logging and profiling.
-func (p *PromAPI) wrap(h func(http.ResponseWriter, *http.Request) (time.Duration, error)) http.HandlerFunc {
+func (p *PromAPI) wrap(h func(http.ResponseWriter, *http.Request) (string, error)) http.HandlerFunc {
 	return func(rw http.ResponseWriter, req *http.Request) {
 		// add profile labels to request's context
 		ctx := req.Context()
@@ -203,15 +205,14 @@ func (p *PromAPI) wrap(h func(http.ResponseWriter, *http.Request) (time.Duration
 		pprof.Do(ctx, labels, func(ctx context.Context) {
 			req = req.WithContext(ctx)
 
-			dur, err := h(rw, req)
-			dur = dur.Truncate(time.Millisecond)
+			info, err := h(rw, req)
 
 			if err != nil {
 				http.Error(rw, err.Error(), 400)
-				p.l.Errorf("%s %s -> 400, %s (%s)", req.Method, req.URL, err, dur)
+				p.l.Errorf("%s %s -> 400 %s, %s", req.Method, req.URL, err, info)
 				return
 			}
-			p.l.Infof("%s %s -> 200 (%s)", req.Method, req.URL, dur)
+			p.l.Infof("%s %s -> 200 %s", req.Method, req.URL, info)
 		})
 	}
 }
@@ -219,13 +220,14 @@ func (p *PromAPI) wrap(h func(http.ResponseWriter, *http.Request) (time.Duration
 // Read returns HTTP handler implementing Prometheus Remote API Read call.
 func (p *PromAPI) Read() http.HandlerFunc { return p.wrap(p.read) }
 
-func (p *PromAPI) read(rw http.ResponseWriter, req *http.Request) (dur time.Duration, err error) {
+func (p *PromAPI) read(rw http.ResponseWriter, req *http.Request) (info string, err error) {
 	// track time and response status
 	p.mReadsStarted.Inc()
 	start := time.Now()
 	defer func() {
-		dur = time.Since(start)
+		dur := time.Since(start)
 		p.mReads.WithLabelValues(errResponseType(err)).Observe(dur.Seconds())
+		info = fmt.Sprintf("%s, %s", dur.Truncate(time.Millisecond), info)
 	}()
 
 	var request prompb.ReadRequest
@@ -235,9 +237,11 @@ func (p *PromAPI) read(rw http.ResponseWriter, req *http.Request) (dur time.Dura
 
 	// read from storage
 	queries := p.convertReadRequest(&request)
+	info = "queries: "
 	for i, q := range queries {
-		p.l.Infof("Query %d: %s", i+1, q)
+		info += fmt.Sprintf("%d: %s, ", i+1, q)
 	}
+	info = strings.TrimSuffix(info, ", ")
 	var response *prompb.ReadResponse
 	if response, err = p.storage.Read(req.Context(), queries); err != nil {
 		return
@@ -263,13 +267,14 @@ func (p *PromAPI) read(rw http.ResponseWriter, req *http.Request) (dur time.Dura
 // Write returns HTTP handler implementing Prometheus Remote API Write call.
 func (p *PromAPI) Write() http.HandlerFunc { return p.wrap(p.write) }
 
-func (p *PromAPI) write(rw http.ResponseWriter, req *http.Request) (dur time.Duration, err error) {
+func (p *PromAPI) write(rw http.ResponseWriter, req *http.Request) (info string, err error) {
 	// track time and response status
 	p.mWritesStarted.Inc()
 	start := time.Now()
 	defer func() {
-		dur = time.Since(start)
+		dur := time.Since(start)
 		p.mWrites.WithLabelValues(errResponseType(err)).Observe(dur.Seconds())
+		info = fmt.Sprintf("%s, %s", dur.Truncate(time.Millisecond), info)
 	}()
 
 	var request prompb.WriteRequest
@@ -283,13 +288,7 @@ func (p *PromAPI) write(rw http.ResponseWriter, req *http.Request) (dur time.Dur
 		samples += len(ts.Samples)
 	}
 	p.mWrittenSamples.Add(float64(samples))
-
-	if err == nil {
-		p.l.Debugf("Wrote %d samples.", samples)
-	} else {
-		p.l.Errorf("Error writing %d samples: %s.", samples, err)
-	}
-
+	info = fmt.Sprintf("%d samples", samples)
 	return
 }
 

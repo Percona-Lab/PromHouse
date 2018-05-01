@@ -145,16 +145,18 @@ func main() {
 	var (
 		promAddrF     = kingpin.Flag("listen-prom-addr", "Prometheus remote API server listen address").Default("127.0.0.1:7781").String()
 		debugAddrF    = kingpin.Flag("listen-debug-addr", "Debug server listen address").Default("127.0.0.1:7782").String()
-		dropF         = kingpin.Flag("drop", "Drop existing database schema").Bool()
-		maxOpenConnsF = kingpin.Flag("max-open-conns", "Maximum number of open connections to the database").Default("50").Int()
-		debugF        = kingpin.Flag("debug", "Enable debug logging").Bool()
+		dropF         = kingpin.Flag("db.drop-schema", "Drop existing database schema").Bool()
+		maxOpenConnsF = kingpin.Flag("db.max-open-conns", "Maximum number of open connections to the database").Default("75").Int()
+		logLevelF     = kingpin.Flag("log.level", "Log level").Default("warn").String()
 	)
+	kingpin.CommandLine.HelpFlag.Short('h')
 	kingpin.Parse()
 
-	logrus.SetLevel(logrus.InfoLevel)
-	if *debugF {
-		logrus.SetLevel(logrus.DebugLevel)
+	level, err := logrus.ParseLevel(*logLevelF)
+	if err != nil {
+		logrus.Fatal(err)
 	}
+	logrus.SetLevel(level)
 
 	l := logrus.WithField("component", "main")
 	ctx, cancel := context.WithCancel(context.Background())

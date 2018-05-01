@@ -32,15 +32,17 @@ func main() {
 		upstreamF         = kingpin.Flag("upstream", "Upstream exporter metrics endpoint").Default("http://127.0.0.1:9100/metrics").String()
 		instanceTemplateF = kingpin.Flag("instance-template", "Instance label value template").Default("multi%d").String()
 		instancesF        = kingpin.Flag("instances", "Number of instances to generate").Default("100").Int()
-		debugF            = kingpin.Flag("debug", "Enable debug output").Bool()
+		logLevelF         = kingpin.Flag("log.level", "Log level").Default("warn").String()
 		listenF           = kingpin.Flag("web.listen-address", "Address on which to expose metrics").Default("127.0.0.1:9099").String()
 	)
+	kingpin.CommandLine.HelpFlag.Short('h')
 	kingpin.Parse()
 
-	logrus.SetLevel(logrus.InfoLevel)
-	if *debugF {
-		logrus.SetLevel(logrus.DebugLevel)
+	level, err := logrus.ParseLevel(*logLevelF)
+	if err != nil {
+		logrus.Fatal(err)
 	}
+	logrus.SetLevel(level)
 
 	client := newClient(*upstreamF)
 	faker := newFaker(*instanceTemplateF, *instancesF)

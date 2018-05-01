@@ -61,7 +61,7 @@ type clickHouse struct {
 	mWrittenTimeSeries prometheus.Counter
 }
 
-func New(dsn string, database string, dropDatabase bool) (base.Storage, error) {
+func New(dsn string, database string, dropDatabase bool, maxOpenConns int) (base.Storage, error) {
 	l := logrus.WithField("component", "clickhouse")
 
 	var queries []string
@@ -123,6 +123,9 @@ func New(dsn string, database string, dropDatabase bool) (base.Storage, error) {
 	if err != nil {
 		return nil, err
 	}
+	db.SetConnMaxLifetime(0)
+	db.SetMaxIdleConns(2)
+	db.SetMaxOpenConns(maxOpenConns)
 
 	ch := &clickHouse{
 		db:       db,

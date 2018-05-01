@@ -86,7 +86,7 @@ func TestStorages(t *testing.T) {
 			return memory.New(), nil
 		},
 		"ClickHouse": func() (base.Storage, error) {
-			return clickhouse.New("tcp://127.0.0.1:9000", "prometheus_test", true)
+			return clickhouse.New("tcp://127.0.0.1:9000", "prometheus_test", true, 10)
 		},
 	} {
 		t.Run(storageName, func(t *testing.T) {
@@ -440,8 +440,12 @@ func TestStorages(t *testing.T) {
 
 func BenchmarkStorages(b *testing.B) {
 	for storageName, newStorage := range map[string]func() (base.Storage, error){
-		"Memory":     func() (base.Storage, error) { return memory.New(), nil },
-		"ClickHouse": func() (base.Storage, error) { return clickhouse.New("tcp://127.0.0.1:9000", "prometheus_test", true) },
+		"Memory": func() (base.Storage, error) {
+			return memory.New(), nil
+		},
+		"ClickHouse": func() (base.Storage, error) {
+			return clickhouse.New("tcp://127.0.0.1:9000", "prometheus_test", true, 10)
+		},
 	} {
 		b.Run(storageName, func(b *testing.B) {
 			storedData := test.GetData()

@@ -48,10 +48,10 @@ const (
 )
 
 // runPromServer runs Prometheus API server until context is canceled, then gracefully stops it.
-func runPromServer(ctx context.Context, addr string, drop bool) {
+func runPromServer(ctx context.Context, addr string, drop bool, maxOpenConns int) {
 	l := logrus.WithField("component", "api")
 
-	storage, err := clickhouse.New("tcp://127.0.0.1:9000", "prometheus", drop)
+	storage, err := clickhouse.New("tcp://127.0.0.1:9000", "prometheus", drop, maxOpenConns)
 	if err != nil {
 		l.Panic(err)
 	}
@@ -143,10 +143,11 @@ func main() {
 	log.SetPrefix("stdlog: ")
 
 	var (
-		promAddrF  = kingpin.Flag("listen-prom-addr", "Prometheus remote API server listen address").Default("127.0.0.1:7781").String()
-		debugAddrF = kingpin.Flag("listen-debug-addr", "Debug server listen address").Default("127.0.0.1:7782").String()
-		dropF      = kingpin.Flag("drop", "Drop existing ClickHouse schema").Bool()
-		debugF     = kingpin.Flag("debug", "Enable debug logging").Bool()
+		promAddrF     = kingpin.Flag("listen-prom-addr", "Prometheus remote API server listen address").Default("127.0.0.1:7781").String()
+		debugAddrF    = kingpin.Flag("listen-debug-addr", "Debug server listen address").Default("127.0.0.1:7782").String()
+		dropF         = kingpin.Flag("drop", "Drop existing database schema").Bool()
+		maxOpenConnsF = kingpin.Flag("max-open-conns", "Maximum number of open connections to the database").Default("50").Int()
+		debugF        = kingpin.Flag("debug", "Enable debug logging").Bool()
 	)
 	kingpin.Parse()
 
@@ -176,7 +177,7 @@ func main() {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		runPromServer(ctx, *promAddrF, *dropF)
+		runPromServer(ctx, *promAddrF, *dropF, *maxOpenConnsF)
 	}()
 	go func() {
 		defer wg.Done()

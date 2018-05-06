@@ -49,10 +49,10 @@ const (
 )
 
 // runPromServer runs Prometheus API server until context is canceled, then gracefully stops it.
-func runPromServer(ctx context.Context, addr string, drop bool, maxOpenConns int) {
+func runPromServer(ctx context.Context, addr string, params *clickhouse.Params) {
 	l := logrus.WithField("component", "api")
 
-	storage, err := clickhouse.New("tcp://127.0.0.1:9000", "prometheus", drop, maxOpenConns)
+	storage, err := clickhouse.New(params)
 	if err != nil {
 		l.Panic(err)
 	}
@@ -180,7 +180,12 @@ func main() {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		runPromServer(ctx, *promAddrF, *dropF, *maxOpenConnsF)
+		params := &clickhouse.Params{
+			DSN:          "tcp://127.0.0.1:9000/?database=prometheus",
+			DropDatabase: *dropF,
+			MaxOpenConns: *maxOpenConnsF,
+		}
+		runPromServer(ctx, *promAddrF, params)
 	}()
 	go func() {
 		defer wg.Done()

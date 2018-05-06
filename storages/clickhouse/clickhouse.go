@@ -54,11 +54,26 @@ type clickHouse struct {
 	mWrittenTimeSeries prometheus.Counter
 }
 
-func New(dsn string, database string, dropDatabase bool, maxOpenConns int) (base.Storage, error) {
+type Params struct {
+	DSN          string
+	DropDatabase bool
+	MaxOpenConns int
+}
+
+func New(params *Params) (base.Storage, error) {
 	l := logrus.WithField("component", "clickhouse")
 
+	dsnURL, err := url.Parse(params.DSN)
+	if err != nil {
+		return nil, err
+	}
+	database := dsnURL.Query().Get("database")
+	if database == "" {
+		return nil, fmt.Errorf("database should be set in ClickHouse DSN")
+	}
+
 	var queries []string
-	if dropDatabase {
+	if params.DropDatabase {
 		queries = append(queries, fmt.Sprintf(`DROP DATABASE IF EXISTS %s`, database))
 	}
 	queries = append(queries, fmt.Sprintf(`CREATE DATABASE IF NOT EXISTS %s`, database))
@@ -84,18 +99,12 @@ func New(dsn string, database string, dropDatabase bool, maxOpenConns int) (base
 			PARTITION BY toDate(timestamp_ms / 1000)
 			ORDER BY (fingerprint, timestamp_ms)`, database))
 
-	// we can't use database in DSN if it doesn't yet exist, so handle that in a special way
-
-	dsnURL, err := url.Parse(dsn)
-	if err != nil {
-		return nil, err
-	}
-	if dsnURL.Query().Get("database") != "" {
-		return nil, fmt.Errorf("database should no be set in ClickHouse dsn")
-	}
-
-	// init schema
-	initDB, err := sql.Open("clickhouse", dsn)
+	// connect without seting database, init schema
+	q := dsnURL.Query()
+	q.Del("database")
+	initURL := dsnURL
+	initURL.RawQuery = q.Encode()
+	initDB, err := sql.Open("clickhouse", initURL.String())
 	if err != nil {
 		return nil, err
 	}
@@ -108,17 +117,13 @@ func New(dsn string, database string, dropDatabase bool, maxOpenConns int) (base
 	}
 
 	// reconnect to created database
-	q := dsnURL.Query()
-	q.Set("database", database)
-	dsnURL.RawQuery = q.Encode()
-	dsn = dsnURL.String()
-	db, err := sql.Open("clickhouse", dsn)
+	db, err := sql.Open("clickhouse", params.DSN)
 	if err != nil {
 		return nil, err
 	}
 	db.SetConnMaxLifetime(0)
 	db.SetMaxIdleConns(2)
-	db.SetMaxOpenConns(maxOpenConns)
+	db.SetMaxOpenConns(params.MaxOpenConns)
 
 	ch := &clickHouse{
 		db:       db,

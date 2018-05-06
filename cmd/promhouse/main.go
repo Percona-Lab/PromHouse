@@ -37,6 +37,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/Percona-Lab/PromHouse/handlers"
@@ -167,11 +168,11 @@ func main() {
 	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT)
 	go func() {
 		s := <-signals
-		l.Warnf("Got %v (%d) signal, shutting down...", s, s.(syscall.Signal))
+		l.Warnf("Got %s, shutting down...", unix.SignalName(s.(syscall.Signal)))
 		cancel()
 
 		s = <-signals
-		l.Panicf("Got %v (%d) signal, exiting!", s, s.(syscall.Signal))
+		l.Panicf("Got %s, exiting!", s, unix.SignalName(s.(syscall.Signal)))
 	}()
 
 	// start servers, wait for them to exit

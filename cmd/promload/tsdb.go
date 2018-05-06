@@ -35,12 +35,12 @@ func newTSDBClient() *tsdbClient {
 	}
 }
 
-func (client *tsdbClient) readTS() (*prompb.TimeSeries, *readProgress, error) {
-	return nil, nil, nil
+func (client *tsdbClient) readTS() ([]*prompb.TimeSeries, *readProgress, error) {
+	panic("not implemented")
 }
 
-func (client *tsdbClient) writeTS(ts *prompb.TimeSeries) error {
-	return nil
+func (client *tsdbClient) writeTS(ts []*prompb.TimeSeries) error {
+	panic("not implemented")
 }
 
 // check interfaces

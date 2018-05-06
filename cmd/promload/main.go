@@ -37,11 +37,11 @@ type readProgress struct {
 }
 
 type tsReader interface {
-	readTS() (*prompb.TimeSeries, *readProgress, error)
+	readTS() ([]*prompb.TimeSeries, *readProgress, error)
 }
 
 type tsWriter interface {
-	writeTS(ts *prompb.TimeSeries) error
+	writeTS(ts []*prompb.TimeSeries) error
 }
 
 func parseArg(arg string) (string, string, error) {
@@ -150,7 +150,7 @@ func main() {
 		}
 	}
 
-	ch := make(chan *prompb.TimeSeries, 100)
+	ch := make(chan []*prompb.TimeSeries, 100)
 	go func() {
 		for {
 			ts, _, err := reader.readTS()
@@ -161,9 +161,7 @@ func main() {
 				close(ch)
 				return
 			}
-			if ts != nil {
-				ch <- ts
-			}
+			ch <- ts
 		}
 	}()
 

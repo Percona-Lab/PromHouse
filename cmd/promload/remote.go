@@ -70,7 +70,7 @@ func newRemoteClient(url string, readStart, readEnd time.Time, readStep time.Dur
 	}
 }
 
-func (client *remoteClient) readTS() (*prompb.TimeSeries, *readProgress, error) {
+func (client *remoteClient) readTS() ([]*prompb.TimeSeries, *readProgress, error) {
 	if client.current.Equal(client.end) {
 		return nil, nil, io.EOF
 	}
@@ -150,23 +150,12 @@ func (client *remoteClient) readTS() (*prompb.TimeSeries, *readProgress, error) 
 	if err = proto.Unmarshal(client.bDecoded, &response); err != nil {
 		return nil, nil, err
 	}
-	t := response.Results[0].TimeSeries
-	l := len(t)
-	switch l {
-	case 0:
-		client.l.Warnf("Got nothing for request %s.", request)
-		return nil, nil, nil
-	case 1:
-		client.l.Debugf("Got %s with %d samples.", t[0].Labels, len(t[0].Samples))
-		return t[0], nil, nil
-	default:
-		return nil, nil, fmt.Errorf("expected 0 or 1 time series, got %d", l)
-	}
+	return response.Results[0].TimeSeries, nil, nil
 }
 
-func (client *remoteClient) writeTS(ts *prompb.TimeSeries) error {
+func (client *remoteClient) writeTS(ts []*prompb.TimeSeries) error {
 	request := prompb.WriteRequest{
-		TimeSeries: []*prompb.TimeSeries{ts},
+		TimeSeries: ts,
 	}
 	client.l.Debugf("Request: %s", request)
 

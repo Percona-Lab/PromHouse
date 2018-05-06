@@ -35,8 +35,8 @@ func newPrometheusClient() *prometheusClient {
 	}
 }
 
-func (client *prometheusClient) readTS() (*prompb.TimeSeries, *readProgress, error) {
-	return nil, nil, nil
+func (client *prometheusClient) readTS() ([]*prompb.TimeSeries, *readProgress, error) {
+	panic("not implemented")
 }
 
 // check interfaces

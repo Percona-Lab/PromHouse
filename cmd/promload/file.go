@@ -56,7 +56,7 @@ func newFileClient(f *os.File) *fileClient {
 	}
 }
 
-func (client *fileClient) readTS() (*prompb.TimeSeries, *readProgress, error) {
+func (client *fileClient) readTS() ([]*prompb.TimeSeries, *readProgress, error) {
 	// read next message reusing bRead
 	var err error
 	var size uint32
@@ -101,36 +101,38 @@ func (client *fileClient) readTS() (*prompb.TimeSeries, *readProgress, error) {
 		}
 	}
 
-	return &ts, rp, nil
+	return []*prompb.TimeSeries{&ts}, rp, nil
 }
 
-func (client *fileClient) writeTS(ts *prompb.TimeSeries) error {
-	// marshal message reusing bMarshaled
-	var err error
-	size := ts.Size()
-	if cap(client.bMarshaled) >= size {
-		client.bMarshaled = client.bMarshaled[:size]
-	} else {
-		client.bMarshaled = make([]byte, size)
-	}
-	size, err = ts.MarshalTo(client.bMarshaled)
-	if err != nil {
-		return errors.Wrap(err, "failed to marshal message")
-	}
-	if ts.Size() != size {
-		return errors.Errorf("unexpected size: expected %d, got %d", ts.Size(), size)
-	}
+func (client *fileClient) writeTS(ts []*prompb.TimeSeries) error {
+	for _, t := range ts {
+		// marshal message reusing bMarshaled
+		var err error
+		size := t.Size()
+		if cap(client.bMarshaled) >= size {
+			client.bMarshaled = client.bMarshaled[:size]
+		} else {
+			client.bMarshaled = make([]byte, size)
+		}
+		size, err = t.MarshalTo(client.bMarshaled)
+		if err != nil {
+			return errors.Wrap(err, "failed to marshal message")
+		}
+		if t.Size() != size {
+			return errors.Errorf("unexpected size: expected %d, got %d", t.Size(), size)
+		}
 
-	// encode message reusing bEncoded
-	client.bEncoded = client.bEncoded[:cap(client.bEncoded)]
-	client.bEncoded = snappy.Encode(client.bEncoded, client.bMarshaled[:size])
+		// encode message reusing bEncoded
+		client.bEncoded = client.bEncoded[:cap(client.bEncoded)]
+		client.bEncoded = snappy.Encode(client.bEncoded, client.bMarshaled[:size])
 
-	// write message
-	if err = binary.Write(client.f, binary.BigEndian, uint32(len(client.bEncoded))); err != nil {
-		return errors.Wrap(err, "failed to write message length")
-	}
-	if _, err = client.f.Write(client.bEncoded); err != nil {
-		return errors.Wrap(err, "failed to write message")
+		// write message
+		if err = binary.Write(client.f, binary.BigEndian, uint32(len(client.bEncoded))); err != nil {
+			return errors.Wrap(err, "failed to write message length")
+		}
+		if _, err = client.f.Write(client.bEncoded); err != nil {
+			return errors.Wrap(err, "failed to write message")
+		}
 	}
 	return nil
 }

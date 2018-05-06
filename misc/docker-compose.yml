@@ -8,6 +8,11 @@ services:
     network_mode: host
     volumes:
       - ./prometheus/${PROM_CONFIG:-prom2}.yml:/etc/prometheus/prometheus.yml
+    command: ["--config.file=/etc/prometheus/prometheus.yml",
+              "--storage.tsdb.path=/prometheus",
+              "--storage.tsdb.retention=5m",
+              "--web.console.libraries=/usr/share/prometheus/console_libraries",
+              "--web.console.templates=/usr/share/prometheus/consoles"]
 
   node_exporter:
     image: prom/node-exporter

@@ -181,9 +181,10 @@ func main() {
 	go func() {
 		defer wg.Done()
 		params := &clickhouse.Params{
-			DSN:          "tcp://127.0.0.1:9000/?database=prometheus",
-			DropDatabase: *dropF,
-			MaxOpenConns: *maxOpenConnsF,
+			DSN:                  "tcp://127.0.0.1:9000/?database=prometheus",
+			DropDatabase:         *dropF,
+			MaxOpenConns:         *maxOpenConnsF,
+			MaxTimeSeriesInQuery: 50,
 		}
 		runPromServer(ctx, *promAddrF, params)
 	}()

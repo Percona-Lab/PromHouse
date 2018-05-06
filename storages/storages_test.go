@@ -85,10 +85,18 @@ func TestStorages(t *testing.T) {
 		"Memory": func() (base.Storage, error) {
 			return memory.New(), nil
 		},
-		"ClickHouse": func() (base.Storage, error) {
+		"ClickHouseTempTable": func() (base.Storage, error) {
 			params := &clickhouse.Params{
 				DSN:          "tcp://127.0.0.1:9000/?database=prometheus_test",
 				DropDatabase: true,
+			}
+			return clickhouse.New(params)
+		},
+		"ClickHouseQuery": func() (base.Storage, error) {
+			params := &clickhouse.Params{
+				DSN:                  "tcp://127.0.0.1:9000/?database=prometheus_test",
+				DropDatabase:         true,
+				MaxTimeSeriesInQuery: 1000,
 			}
 			return clickhouse.New(params)
 		},
@@ -447,10 +455,18 @@ func BenchmarkStorages(b *testing.B) {
 		"Memory": func() (base.Storage, error) {
 			return memory.New(), nil
 		},
-		"ClickHouse": func() (base.Storage, error) {
+		"ClickHouseTempTable": func() (base.Storage, error) {
 			params := &clickhouse.Params{
 				DSN:          "tcp://127.0.0.1:9000/?database=prometheus_test",
 				DropDatabase: true,
+			}
+			return clickhouse.New(params)
+		},
+		"ClickHouseQuery": func() (base.Storage, error) {
+			params := &clickhouse.Params{
+				DSN:                  "tcp://127.0.0.1:9000/?database=prometheus_test",
+				DropDatabase:         true,
+				MaxTimeSeriesInQuery: 1000,
 			}
 			return clickhouse.New(params)
 		},

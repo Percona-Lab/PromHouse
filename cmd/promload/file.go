@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
@@ -31,11 +30,11 @@ import (
 	"github.com/Percona-Lab/PromHouse/prompb"
 )
 
+// fileClient reads and writes data from/to files in custom format.
 type fileClient struct {
 	l                    *logrus.Entry
 	f                    *os.File
 	fSize                int64
-	lastLog              time.Time
 	bRead, bDecoded      []byte
 	bMarshaled, bEncoded []byte
 }
@@ -57,25 +56,15 @@ func newFileClient(f *os.File) *fileClient {
 	}
 }
 
-func (client *fileClient) readTS() (*prompb.TimeSeries, error) {
-	if time.Since(client.lastLog) > 10*time.Second {
-		client.lastLog = time.Now()
-		if client.fSize != 0 {
-			offset, err := client.f.Seek(0, 1)
-			if err == nil {
-				client.l.Infof("Read %.2f%% of the file.", float64(offset*100)/float64(client.fSize))
-			}
-		}
-	}
-
+func (client *fileClient) readTS() (*prompb.TimeSeries, *readProgress, error) {
 	// read next message reusing bRead
 	var err error
 	var size uint32
 	if err = binary.Read(client.f, binary.BigEndian, &size); err != nil {
 		if err == io.EOF {
-			return nil, err
+			return nil, nil, err
 		}
-		return nil, errors.Wrap(err, "failed to read message size")
+		return nil, nil, errors.Wrap(err, "failed to read message size")
 	}
 	if uint32(cap(client.bRead)) >= size {
 		client.bRead = client.bRead[:size]
@@ -83,22 +72,36 @@ func (client *fileClient) readTS() (*prompb.TimeSeries, error) {
 		client.bRead = make([]byte, size)
 	}
 	if _, err = io.ReadFull(client.f, client.bRead); err != nil {
-		return nil, errors.Wrap(err, "failed to read message")
+		return nil, nil, errors.Wrap(err, "failed to read message")
 	}
 
 	// decode message reusing bDecoded
 	client.bDecoded = client.bDecoded[:cap(client.bDecoded)]
 	client.bDecoded, err = snappy.Decode(client.bDecoded, client.bRead)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to decode message")
+		return nil, nil, errors.Wrap(err, "failed to decode message")
 	}
 
 	// unmarshal message
 	var ts prompb.TimeSeries
 	if err = proto.Unmarshal(client.bDecoded, &ts); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal message")
+		return nil, nil, errors.Wrap(err, "failed to unmarshal message")
 	}
-	return &ts, nil
+
+	// update progress
+	var rp *readProgress
+	if client.fSize != 0 {
+		offset, err := client.f.Seek(0, 1)
+		if err == nil {
+			rp = &readProgress{
+				current: uint(offset),
+				max:     uint(client.fSize),
+			}
+			// client.l.Infof("Read %.2f%% of the file.", float64(offset*100)/float64(client.fSize))
+		}
+	}
+
+	return &ts, rp, nil
 }
 
 func (client *fileClient) writeTS(ts *prompb.TimeSeries) error {

@@ -32,8 +32,12 @@ import (
 	"github.com/Percona-Lab/PromHouse/utils/duration"
 )
 
+type readProgress struct {
+	current, max uint
+}
+
 type tsReader interface {
-	readTS() (*prompb.TimeSeries, error)
+	readTS() (*prompb.TimeSeries, *readProgress, error)
 }
 
 type tsWriter interface {
@@ -62,11 +66,12 @@ func main() {
 	log.SetPrefix("stdlog: ")
 
 	var (
-		fromArg = kingpin.Arg("from", "Read data from that source\n\tfile:data.bin for local file\n\tremote:http://127.0.0.1:7781/read for PromHouse\n\tremote:http://127.0.0.1:9090/api/v1/read for Prometheus").Required().String()
-		toArg   = kingpin.Arg("to", "Write data to that destination\n\tfile:data.bin for local file\n\tremote:http://127.0.0.1:7781/write for PromHouse").Required().String()
+		// remote:http://127.0.0.1:9090/api/v1/read for Prometheus
+		sourceArg      = kingpin.Arg("source", "Read data from that source\n\tfile:data.bin for local file\n\tremote:http://127.0.0.1:7781/read for remote storage").Required().String()
+		destinationArg = kingpin.Arg("destination", "Write data to that destination\n\tfile:data.bin for local file\n\tremote:http://127.0.0.1:7781/write for remote storage").Required().String()
 
-		lastF = duration.FromFlag(kingpin.Flag("from.remote.last", "Remote source: read from that time ago").Default("30d"))
-		stepF = duration.FromFlag(kingpin.Flag("from.remote.step", "Remote source: interval for a single request").Default("1m"))
+		lastF = duration.FromFlag(kingpin.Flag("source.remote.last", "Remote source: read from that time ago").Default("30d"))
+		stepF = duration.FromFlag(kingpin.Flag("source.remote.step", "Remote source: interval for a single request").Default("1m"))
 
 		logLevelF = kingpin.Flag("log.level", "Log level").Default("warn").String()
 	)
@@ -83,13 +88,13 @@ func main() {
 	var writer tsWriter
 
 	{
-		fromType, fromAddr, err := parseArg(*fromArg)
+		sourceType, sourceAddr, err := parseArg(*sourceArg)
 		if err != nil {
-			logrus.Fatalf("Failed to parse 'from' argument %s: %s.", *fromArg, err)
+			logrus.Fatalf("Failed to parse 'source' argument %s: %s.", *sourceArg, err)
 		}
-		switch fromType {
+		switch sourceType {
 		case "file":
-			f, err := os.Open(fromAddr)
+			f, err := os.Open(sourceAddr)
 			if err != nil {
 				logrus.Fatal(err)
 			}
@@ -100,15 +105,15 @@ func main() {
 				logrus.Infof("%s closed.", f.Name())
 			}()
 
-			logrus.Infof("Reading metrics from %s %s.", fromType, fromAddr)
+			logrus.Infof("Reading metrics from %s %s.", sourceType, sourceAddr)
 			reader = newFileClient(f)
 
 		case "remote":
 			end := time.Now().Truncate(time.Minute)
 			start := end.Add(-time.Duration(*lastF))
 
-			logrus.Infof("Reading metrics from %s %s between %s and %s with step %s.", fromType, fromAddr, start, end, *stepF)
-			reader = newRemoteClient(fromAddr, start, end, time.Duration(*stepF))
+			logrus.Infof("Reading metrics from %s %s between %s and %s with step %s.", sourceType, sourceAddr, start, end, *stepF)
+			reader = newRemoteClient(sourceAddr, start, end, time.Duration(*stepF))
 
 		default:
 			panic("not reached")
@@ -116,13 +121,13 @@ func main() {
 	}
 
 	{
-		toType, toAddr, err := parseArg(*toArg)
+		destinationType, destinationAddr, err := parseArg(*destinationArg)
 		if err != nil {
-			logrus.Fatalf("Failed to parse 'to' argument %s: %s.", *toArg, err)
+			logrus.Fatalf("Failed to parse 'destination' argument %s: %s.", *destinationArg, err)
 		}
-		switch toType {
+		switch destinationType {
 		case "file":
-			f, err := os.Create(toAddr)
+			f, err := os.Create(destinationAddr)
 			if err != nil {
 				logrus.Fatal(err)
 			}
@@ -133,12 +138,12 @@ func main() {
 				logrus.Infof("%s closed.", f.Name())
 			}()
 
-			logrus.Infof("Writing metrics to %s %s.", toType, toAddr)
+			logrus.Infof("Writing metrics to %s %s.", destinationType, destinationAddr)
 			writer = newFileClient(f)
 
 		case "remote":
-			logrus.Infof("Writing metrics to %s %s.", toType, toAddr)
-			writer = newRemoteClient(toAddr, time.Time{}, time.Time{}, 0)
+			logrus.Infof("Writing metrics to %s %s.", destinationType, destinationAddr)
+			writer = newRemoteClient(destinationAddr, time.Time{}, time.Time{}, 0)
 
 		default:
 			panic("not reached")
@@ -148,7 +153,7 @@ func main() {
 	ch := make(chan *prompb.TimeSeries, 100)
 	go func() {
 		for {
-			ts, err := reader.readTS()
+			ts, _, err := reader.readTS()
 			if err != nil {
 				if err != io.EOF {
 					logrus.Errorf("Read error: %+v", err)

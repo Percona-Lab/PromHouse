@@ -1,4 +1,4 @@
-// promhouse
+// PromHouse
 // Copyright (C) 2017 Percona LLC
 //
 // This program is free software: you can redistribute it and/or modify
@@ -24,14 +24,16 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Percona-Lab/PromHouse/prompb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/prometheus/common/model"
 	"github.com/sirupsen/logrus"
+
+	"github.com/Percona-Lab/PromHouse/prompb"
 )
 
-// remote client for Prometheus remote APIs: read/write for PromHouse, read only for Prometheus.
+// remoteClient reads and writes data from/to Prometheus remote API.
+// For reading from Prometheus prometheusClient should be used instead.
 type remoteClient struct {
 	l    *logrus.Entry
 	http *http.Client
@@ -68,9 +70,9 @@ func newRemoteClient(url string, readStart, readEnd time.Time, readStep time.Dur
 	}
 }
 
-func (client *remoteClient) readTS() (*prompb.TimeSeries, error) {
+func (client *remoteClient) readTS() (*prompb.TimeSeries, *readProgress, error) {
 	if client.current.Equal(client.end) {
-		return nil, io.EOF
+		return nil, nil, io.EOF
 	}
 
 	start := client.current
@@ -103,10 +105,10 @@ func (client *remoteClient) readTS() (*prompb.TimeSeries, error) {
 	}
 	size, err = request.MarshalTo(client.bMarshaled)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if request.Size() != size {
-		return nil, fmt.Errorf("unexpected size: expected %d, got %d", request.Size(), size)
+		return nil, nil, fmt.Errorf("unexpected size: expected %d, got %d", request.Size(), size)
 	}
 
 	// encode request reusing bEncoded
@@ -115,50 +117,50 @@ func (client *remoteClient) readTS() (*prompb.TimeSeries, error) {
 
 	req, err := http.NewRequest("POST", client.url, bytes.NewReader(client.bEncoded))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	req.Header.Set("Content-Type", "application/x-protobuf")
 	req.Header.Set("Content-Encoding", "snappy")
 
 	resp, err := client.http.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer resp.Body.Close()
 
 	// read response reusing bRead
 	buf := bytes.NewBuffer(client.bRead[:0])
 	if _, err = buf.ReadFrom(resp.Body); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	client.bRead = buf.Bytes()
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("%d: %s", resp.StatusCode, client.bRead)
+		return nil, nil, fmt.Errorf("%d: %s", resp.StatusCode, client.bRead)
 	}
 
 	// decode response reusing bDecoded
 	client.bDecoded = client.bDecoded[:cap(client.bDecoded)]
 	client.bDecoded, err = snappy.Decode(client.bDecoded, client.bRead)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// unmarshal message
 	var response prompb.ReadResponse
 	if err = proto.Unmarshal(client.bDecoded, &response); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	t := response.Results[0].TimeSeries
 	l := len(t)
 	switch l {
 	case 0:
 		client.l.Warnf("Got nothing for request %s.", request)
-		return nil, nil
+		return nil, nil, nil
 	case 1:
 		client.l.Debugf("Got %s with %d samples.", t[0].Labels, len(t[0].Samples))
-		return t[0], nil
+		return t[0], nil, nil
 	default:
-		return nil, fmt.Errorf("expected 0 or 1 time series, got %d", l)
+		return nil, nil, fmt.Errorf("expected 0 or 1 time series, got %d", l)
 	}
 }
 

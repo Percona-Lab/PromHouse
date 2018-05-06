@@ -20,8 +20,9 @@ package test
 import (
 	"time"
 
-	"github.com/Percona-Lab/PromHouse/prompb"
 	"github.com/prometheus/common/model"
+
+	"github.com/Percona-Lab/PromHouse/prompb"
 )
 
 func GetData() *prompb.WriteRequest {

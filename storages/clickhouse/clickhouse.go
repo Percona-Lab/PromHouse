@@ -40,8 +40,6 @@ import (
 const (
 	namespace = "promhouse"
 	subsystem = "clickhouse"
-
-	sampleRowSize = 8 + 8 + 8
 )
 
 // clickHouse implements storage interface for the ClickHouse.
@@ -52,11 +50,6 @@ type clickHouse struct {
 
 	timeSeriesRW sync.RWMutex
 	timeSeries   map[uint64][]*prompb.Label
-
-	mTimeSeriesCurrent          prometheus.Gauge
-	mSamplesCurrent             prometheus.Gauge
-	mSamplesCurrentBytes        prometheus.Gauge
-	mSamplesCurrentVirtualBytes prometheus.Gauge
 
 	mWrittenTimeSeries prometheus.Counter
 }
@@ -134,30 +127,6 @@ func New(dsn string, database string, dropDatabase bool, maxOpenConns int) (base
 
 		timeSeries: make(map[uint64][]*prompb.Label, 8192),
 
-		mTimeSeriesCurrent: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: namespace,
-			Subsystem: subsystem,
-			Name:      "time_series_current",
-			Help:      "Current number of stored time series (rows).",
-		}),
-		mSamplesCurrent: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: namespace,
-			Subsystem: subsystem,
-			Name:      "samples_current",
-			Help:      "Current number of stored samples.",
-		}),
-		mSamplesCurrentBytes: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: namespace,
-			Subsystem: subsystem,
-			Name:      "samples_current_bytes",
-			Help:      "Current number of stored samples (bytes).",
-		}),
-		mSamplesCurrentVirtualBytes: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: namespace,
-			Subsystem: subsystem,
-			Name:      "samples_current_virtual_bytes",
-			Help:      "Current number of stored samples (virtual uncompressed bytes).",
-		}),
 		mWrittenTimeSeries: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: subsystem,
@@ -227,56 +196,10 @@ func (ch *clickHouse) runTimeSeriesReloader(ctx context.Context) {
 }
 
 func (ch *clickHouse) Describe(c chan<- *prometheus.Desc) {
-	ch.mTimeSeriesCurrent.Describe(c)
-	ch.mSamplesCurrent.Describe(c)
-	ch.mSamplesCurrentBytes.Describe(c)
-	ch.mSamplesCurrentVirtualBytes.Describe(c)
 	ch.mWrittenTimeSeries.Describe(c)
 }
 
 func (ch *clickHouse) Collect(c chan<- prometheus.Metric) {
-	// TODO remove this when https://github.com/f1yegor/clickhouse_exporter/pull/13 is merged
-	// 'SELECT COUNT(*) FROM samples' is slow
-	query := `
-	SELECT table, sum(rows) AS rows, sum(bytes) AS bytes, (? * rows) AS virtual_bytes
-		FROM system.parts
-		WHERE database = ? AND active
-		GROUP BY table`
-	ch.l.Debugf("%s [%v, %v]", query, sampleRowSize, ch.database)
-	rows, err := ch.db.Query(query, sampleRowSize, ch.database)
-	if err != nil {
-		ch.l.Error(err)
-		return
-	}
-	defer rows.Close()
-
-	var table string
-	var r, b, vb uint64
-	for rows.Next() {
-		if err = rows.Scan(&table, &r, &b, &vb); err != nil {
-			ch.l.Error(err)
-			return
-		}
-		switch table {
-		case "time_series":
-			ch.mTimeSeriesCurrent.Set(float64(r))
-			// ignore b and vb
-		case "samples":
-			ch.mSamplesCurrent.Set(float64(r))
-			ch.mSamplesCurrentBytes.Set(float64(b))
-			ch.mSamplesCurrentVirtualBytes.Set(float64(vb))
-		default:
-			ch.l.Errorf("unexpected table %q", table)
-		}
-	}
-	if err = rows.Err(); err != nil {
-		ch.l.Error(err)
-	}
-
-	ch.mTimeSeriesCurrent.Collect(c)
-	ch.mSamplesCurrent.Collect(c)
-	ch.mSamplesCurrentBytes.Collect(c)
-	ch.mSamplesCurrentVirtualBytes.Collect(c)
 	ch.mWrittenTimeSeries.Collect(c)
 }
 

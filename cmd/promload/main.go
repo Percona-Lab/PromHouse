@@ -17,15 +17,19 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log"
 	"net/url"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/Percona-Lab/PromHouse/prompb"
@@ -83,6 +87,21 @@ func main() {
 		logrus.Fatal(err)
 	}
 	logrus.SetLevel(level)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer logrus.Print("Done.")
+
+	// handle termination signals: first one gracefully, force exit on the second one
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT)
+	go func() {
+		s := <-signals
+		logrus.Warnf("Got %s, shutting down...", unix.SignalName(s.(syscall.Signal)))
+		cancel()
+
+		s = <-signals
+		logrus.Panicf("Got %s, exiting!", s, unix.SignalName(s.(syscall.Signal)))
+	}()
 
 	var reader tsReader
 	var writer tsWriter
@@ -155,6 +174,9 @@ func main() {
 	go func() {
 		for {
 			ts, rp, err := reader.readTS()
+			if err == nil {
+				err = ctx.Err()
+			}
 			if err != nil {
 				if err != io.EOF {
 					logrus.Errorf("Read error: %+v", err)

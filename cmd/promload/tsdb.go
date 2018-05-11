@@ -43,6 +43,10 @@ func (client *tsdbClient) writeTS(ts []*prompb.TimeSeries) error {
 	panic("not implemented")
 }
 
+func (client *tsdbClient) close() error {
+	panic("not implemented")
+}
+
 // check interfaces
 var (
 	_ tsReader = (*tsdbClient)(nil)

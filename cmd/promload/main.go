@@ -42,10 +42,12 @@ type readProgress struct {
 
 type tsReader interface {
 	readTS() ([]*prompb.TimeSeries, *readProgress, error)
+	close() error
 }
 
 type tsWriter interface {
 	writeTS(ts []*prompb.TimeSeries) error
+	close() error
 }
 
 func parseArg(arg string) (string, string, error) {
@@ -117,20 +119,12 @@ func main() {
 			if err != nil {
 				logrus.Fatal(err)
 			}
-			defer func() {
-				if err = f.Close(); err != nil {
-					logrus.Error(err)
-				}
-				logrus.Infof("%s closed.", f.Name())
-			}()
-
 			logrus.Infof("Reading metrics from %s %s.", sourceType, sourceAddr)
 			reader = newFileClient(f)
 
 		case "remote":
 			end := time.Now().Truncate(time.Minute)
 			start := end.Add(-time.Duration(*lastF))
-
 			logrus.Infof("Reading metrics from %s %s between %s and %s with step %s.", sourceType, sourceAddr, start, end, *stepF)
 			reader = newRemoteClient(sourceAddr, start, end, time.Duration(*stepF))
 
@@ -150,13 +144,6 @@ func main() {
 			if err != nil {
 				logrus.Fatal(err)
 			}
-			defer func() {
-				if err = f.Close(); err != nil {
-					logrus.Error(err)
-				}
-				logrus.Infof("%s closed.", f.Name())
-			}()
-
 			logrus.Infof("Writing metrics to %s %s.", destinationType, destinationAddr)
 			writer = newFileClient(f)
 
@@ -181,6 +168,9 @@ func main() {
 				if err != io.EOF {
 					logrus.Errorf("Read error: %+v", err)
 				}
+				if err = reader.close(); err != nil {
+					logrus.Errorf("Reader close error: %+v", err)
+				}
 				close(ch)
 				return
 			}
@@ -201,5 +191,8 @@ func main() {
 		if err := writer.writeTS(ts); err != nil {
 			logrus.Errorf("Write error: %+v", err)
 		}
+	}
+	if err = writer.close(); err != nil {
+		logrus.Errorf("Writer close error: %+v", err)
 	}
 }

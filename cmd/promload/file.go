@@ -34,8 +34,9 @@ import (
 // fileClient reads and writes data from/to files in custom format.
 type fileClient struct {
 	l                    *logrus.Entry
-	r                    *os.File
-	w                    io.Writer
+	f                    *os.File
+	r                    *bufio.Reader
+	w                    *bufio.Writer
 	fSize                int64
 	bRead, bDecoded      []byte
 	bMarshaled, bEncoded []byte
@@ -49,7 +50,8 @@ func newFileClient(f *os.File) *fileClient {
 	}
 	return &fileClient{
 		l:          logrus.WithField("client", fmt.Sprintf("file %s", f.Name())),
-		r:          f,
+		f:          f,
+		r:          bufio.NewReader(f),
 		w:          bufio.NewWriter(f),
 		fSize:      fSize,
 		bRead:      make([]byte, 1048576),
@@ -94,7 +96,7 @@ func (client *fileClient) readTS() ([]*prompb.TimeSeries, *readProgress, error) 
 	// update progress
 	var rp *readProgress
 	if client.fSize != 0 {
-		offset, err := client.r.Seek(0, os.SEEK_CUR)
+		offset, err := client.f.Seek(0, os.SEEK_CUR)
 		if err == nil {
 			rp = &readProgress{
 				current: uint(offset),
@@ -137,6 +139,20 @@ func (client *fileClient) writeTS(ts []*prompb.TimeSeries) error {
 		}
 	}
 	return nil
+}
+
+func (client *fileClient) close() error {
+	var err error
+	if e := client.w.Flush(); e != nil {
+		err = errors.Wrap(e, "failed to flush")
+	}
+	if e := client.f.Sync(); e != nil {
+		err = errors.Wrap(e, "failed to sync")
+	}
+	if e := client.f.Close(); e != nil {
+		err = errors.Wrap(e, "failed to close")
+	}
+	return err
 }
 
 // check interfaces

@@ -207,6 +207,11 @@ func (client *remoteClient) writeTS(ts []*prompb.TimeSeries) error {
 	return nil
 }
 
+func (client *remoteClient) close() error {
+	client.http.Transport.(*http.Transport).CloseIdleConnections()
+	return nil
+}
+
 // check interfaces
 var (
 	_ tsReader = (*remoteClient)(nil)

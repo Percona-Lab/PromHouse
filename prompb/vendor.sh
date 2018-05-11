@@ -5,6 +5,12 @@ set -ex
 rm -fr prom
 git clone https://github.com/prometheus/prometheus.git prom
 
+rm -fr prom-master
+mkdir prom-master
+cd prom && git checkout master
+cp -v prompb/*.proto ../prom-master
+cd ..
+
 rm -fr prom1
 mkdir prom1
 cd prom && git checkout v1.8.2

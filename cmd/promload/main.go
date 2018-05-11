@@ -73,7 +73,7 @@ func main() {
 		lastF = duration.FromFlag(kingpin.Flag("source.remote.last", "Remote source: read from that time ago").Default("30d"))
 		stepF = duration.FromFlag(kingpin.Flag("source.remote.step", "Remote source: interval for a single request").Default("1m"))
 
-		logLevelF = kingpin.Flag("log.level", "Log level").Default("warn").String()
+		logLevelF = kingpin.Flag("log.level", "Log level").Default("info").String()
 	)
 	kingpin.CommandLine.HelpFlag.Short('h')
 	kingpin.Parse()
@@ -151,9 +151,10 @@ func main() {
 	}
 
 	ch := make(chan []*prompb.TimeSeries, 100)
+	var lastReport time.Time
 	go func() {
 		for {
-			ts, _, err := reader.readTS()
+			ts, rp, err := reader.readTS()
 			if err != nil {
 				if err != io.EOF {
 					logrus.Errorf("Read error: %+v", err)
@@ -161,6 +162,15 @@ func main() {
 				close(ch)
 				return
 			}
+
+			if rp != nil && rp.max > 0 {
+				if time.Since(lastReport) > 10*time.Second {
+					lastReport = time.Now()
+					logrus.Infof("Read %.2f%% (%d / %d), write buffer: %d / %d.",
+						float64(rp.current*100)/float64(rp.max), rp.current, rp.max, len(ch), cap(ch))
+				}
+			}
+
 			ch <- ts
 		}
 	}()
@@ -168,7 +178,6 @@ func main() {
 	for ts := range ch {
 		if err := writer.writeTS(ts); err != nil {
 			logrus.Errorf("Write error: %+v", err)
-			return
 		}
 	}
 }

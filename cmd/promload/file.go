@@ -97,7 +97,6 @@ func (client *fileClient) readTS() ([]*prompb.TimeSeries, *readProgress, error) 
 				current: uint(offset),
 				max:     uint(client.fSize),
 			}
-			// client.l.Infof("Read %.2f%% of the file.", float64(offset*100)/float64(client.fSize))
 		}
 	}
 

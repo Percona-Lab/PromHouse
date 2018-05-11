@@ -29,6 +29,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/sirupsen/logrus"
@@ -133,7 +134,7 @@ var snappyPool = sync.Pool{
 func readRequest(req *http.Request, pb proto.Message) error {
 	compressed, err := ioutil.ReadAll(req.Body)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	dst := *snappyPool.Get().(*[]byte)
@@ -143,7 +144,7 @@ func readRequest(req *http.Request, pb proto.Message) error {
 		err = proto.Unmarshal(b, pb)
 	}
 	snappyPool.Put(&b)
-	return err
+	return errors.WithStack(err)
 }
 
 // convertReadRequest converts protobuf read request into a slice of storage queries.
@@ -209,7 +210,7 @@ func (p *PromAPI) wrap(h func(http.ResponseWriter, *http.Request) (string, error
 
 			if err != nil {
 				http.Error(rw, err.Error(), 400)
-				p.l.Errorf("%s %s -> 400 %s, %s", req.Method, req.URL, err, info)
+				p.l.Errorf("%s %s -> 400 %s: %+v", req.Method, req.URL, info, err)
 				return
 			}
 			p.l.Infof("%s %s -> 200 %s", req.Method, req.URL, info)
@@ -227,7 +228,11 @@ func (p *PromAPI) read(rw http.ResponseWriter, req *http.Request) (info string, 
 	defer func() {
 		dur := time.Since(start)
 		p.mReads.WithLabelValues(errResponseType(err)).Observe(dur.Seconds())
-		info = fmt.Sprintf("%s, %s", dur.Truncate(time.Millisecond), info)
+		if info == "" {
+			info = dur.Truncate(time.Millisecond).String()
+		} else {
+			info = fmt.Sprintf("%s, %s", dur.Truncate(time.Millisecond), info)
+		}
 	}()
 
 	var request prompb.ReadRequest
@@ -274,7 +279,11 @@ func (p *PromAPI) write(rw http.ResponseWriter, req *http.Request) (info string,
 	defer func() {
 		dur := time.Since(start)
 		p.mWrites.WithLabelValues(errResponseType(err)).Observe(dur.Seconds())
-		info = fmt.Sprintf("%s, %s", dur.Truncate(time.Millisecond), info)
+		if info == "" {
+			info = dur.Truncate(time.Millisecond).String()
+		} else {
+			info = fmt.Sprintf("%s, %s", dur.Truncate(time.Millisecond), info)
+		}
 	}()
 
 	var request prompb.WriteRequest

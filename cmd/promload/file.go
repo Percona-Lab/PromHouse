@@ -17,6 +17,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -33,7 +34,8 @@ import (
 // fileClient reads and writes data from/to files in custom format.
 type fileClient struct {
 	l                    *logrus.Entry
-	f                    *os.File
+	r                    *os.File
+	w                    io.Writer
 	fSize                int64
 	bRead, bDecoded      []byte
 	bMarshaled, bEncoded []byte
@@ -47,7 +49,8 @@ func newFileClient(f *os.File) *fileClient {
 	}
 	return &fileClient{
 		l:          logrus.WithField("client", fmt.Sprintf("file %s", f.Name())),
-		f:          f,
+		r:          f,
+		w:          bufio.NewWriter(f),
 		fSize:      fSize,
 		bRead:      make([]byte, 1048576),
 		bDecoded:   make([]byte, 1048576),
@@ -60,7 +63,7 @@ func (client *fileClient) readTS() ([]*prompb.TimeSeries, *readProgress, error) 
 	// read next message reusing bRead
 	var err error
 	var size uint32
-	if err = binary.Read(client.f, binary.BigEndian, &size); err != nil {
+	if err = binary.Read(client.r, binary.BigEndian, &size); err != nil {
 		if err == io.EOF {
 			return nil, nil, err
 		}
@@ -71,7 +74,7 @@ func (client *fileClient) readTS() ([]*prompb.TimeSeries, *readProgress, error) 
 	} else {
 		client.bRead = make([]byte, size)
 	}
-	if _, err = io.ReadFull(client.f, client.bRead); err != nil {
+	if _, err = io.ReadFull(client.r, client.bRead); err != nil {
 		return nil, nil, errors.Wrap(err, "failed to read message")
 	}
 
@@ -91,7 +94,7 @@ func (client *fileClient) readTS() ([]*prompb.TimeSeries, *readProgress, error) 
 	// update progress
 	var rp *readProgress
 	if client.fSize != 0 {
-		offset, err := client.f.Seek(0, 1)
+		offset, err := client.r.Seek(0, os.SEEK_CUR)
 		if err == nil {
 			rp = &readProgress{
 				current: uint(offset),
@@ -126,10 +129,10 @@ func (client *fileClient) writeTS(ts []*prompb.TimeSeries) error {
 		client.bEncoded = snappy.Encode(client.bEncoded, client.bMarshaled[:size])
 
 		// write message
-		if err = binary.Write(client.f, binary.BigEndian, uint32(len(client.bEncoded))); err != nil {
+		if err = binary.Write(client.w, binary.BigEndian, uint32(len(client.bEncoded))); err != nil {
 			return errors.Wrap(err, "failed to write message length")
 		}
-		if _, err = client.f.Write(client.bEncoded); err != nil {
+		if _, err = client.w.Write(client.bEncoded); err != nil {
 			return errors.Wrap(err, "failed to write message")
 		}
 	}

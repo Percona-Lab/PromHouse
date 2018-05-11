@@ -150,7 +150,12 @@ func (client *remoteClient) readTS() ([]*prompb.TimeSeries, *readProgress, error
 	if err = proto.Unmarshal(client.bDecoded, &response); err != nil {
 		return nil, nil, err
 	}
-	return response.Results[0].TimeSeries, nil, nil
+
+	rp := &readProgress{
+		current: uint(client.current.Unix() - client.start.Unix()),
+		max:     uint(client.end.Unix() - client.start.Unix()),
+	}
+	return response.Results[0].TimeSeries, rp, nil
 }
 
 func (client *remoteClient) writeTS(ts []*prompb.TimeSeries) error {

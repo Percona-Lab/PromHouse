@@ -136,6 +136,7 @@
   packages = [
     "expfmt",
     "internal/bitbucket.org/ww/goautoneg",
+    "log",
     "model"
   ]
   revision = "d811d2e9bf898806ecfb6ef6296774b13ffc314c"
@@ -177,7 +178,9 @@
   name = "golang.org/x/sys"
   packages = [
     "unix",
-    "windows"
+    "windows",
+    "windows/registry",
+    "windows/svc/eventlog"
   ]
   revision = "6f686a352de66814cdd080d970febae7767857a3"
 
@@ -190,6 +193,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "f952d26f4eac955e391e8e288d3c74073482816a7ce506d665aaa8418b34a68e"
+  inputs-digest = "f05e4d5899d46e65d3cf3d15f0decc980d871553264aaf1ca0b8a440852c3da4"
   solver-name = "gps-cdcl"
   solver-version = 1

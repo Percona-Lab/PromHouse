@@ -17,22 +17,25 @@
 package main
 
 import (
-	"log"
+	stdlog "log"
 	"net/http"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/common/log"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 func main() {
-	log.SetFlags(0)
-	log.SetPrefix("stdlog: ")
+	stdlog.SetFlags(0)
+	stdlog.SetPrefix("stdlog: ")
 
 	var (
 		upstreamF         = kingpin.Flag("upstream", "Upstream exporter metrics endpoint").Default("http://127.0.0.1:9100/metrics").String()
 		instanceTemplateF = kingpin.Flag("instance-template", "Instance label value template").Default("multi%d").String()
 		instancesF        = kingpin.Flag("instances", "Number of instances to generate").Default("100").Int()
-		logLevelF         = kingpin.Flag("log.level", "Log level").Default("warn").String()
+		logLevelF         = kingpin.Flag("log.level", "Log level").Default("info").String()
 		listenF           = kingpin.Flag("web.listen-address", "Address on which to expose metrics").Default("127.0.0.1:9099").String()
 	)
 	kingpin.CommandLine.HelpFlag.Short('h')
@@ -44,9 +47,18 @@ func main() {
 	}
 	logrus.SetLevel(level)
 
+	exporter := newExporter()
+	prometheus.MustRegister(exporter)
+	http.Handle("/metrics/self", promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{
+		ErrorLog:      log.NewErrorLogger(),
+		ErrorHandling: promhttp.ContinueOnError,
+	}))
+
 	client := newClient(*upstreamF)
 	faker := newFaker(*instanceTemplateF, *instancesF)
 	http.HandleFunc("/metrics", func(rw http.ResponseWriter, req *http.Request) {
+		exporter.scrapesTotal.Inc()
+
 		r, err := client.get()
 		if err != nil {
 			logrus.Error(err)
@@ -59,6 +71,7 @@ func main() {
 		}
 	})
 
-	logrus.Infof("Listening on http://%s/metrics ...", *listenF)
+	logrus.Infof("Serving fake metrics on http://%s/metrics", *listenF)
+	logrus.Infof("Serving self metrics on http://%s/metrics/self", *listenF)
 	logrus.Fatal(http.ListenAndServe(*listenF, nil))
 }

@@ -66,7 +66,7 @@ func runPromServer(ctx context.Context, addr string, params *clickhouse.Params) 
 	mux.HandleFunc("/read", promAPI.Read())
 	mux.HandleFunc("/write", promAPI.Write())
 
-	l.Printf("Starting server on http://%s/", addr)
+	l.Infof("Starting server on http://%s/", addr)
 	server := &http.Server{
 		Addr:     addr,
 		ErrorLog: log.New(os.Stderr, "runPromServer: ", 0),
@@ -76,7 +76,7 @@ func runPromServer(ctx context.Context, addr string, params *clickhouse.Params) 
 		if err := server.ListenAndServe(); err != http.ErrServerClosed {
 			l.Panic(err)
 		}
-		l.Print("Server stopped.")
+		l.Info("Server stopped.")
 	}()
 
 	<-ctx.Done()
@@ -118,7 +118,7 @@ func runDebugServer(ctx context.Context, addr string) {
 	http.HandleFunc("/debug", func(rw http.ResponseWriter, req *http.Request) {
 		rw.Write(buf.Bytes())
 	})
-	l.Printf("Starting server on http://%s/debug\nRegistered handlers:\n\t%s", addr, strings.Join(handlers, "\n\t"))
+	l.Infof("Starting server on http://%s/debug\nRegistered handlers:\n\t%s", addr, strings.Join(handlers, "\n\t"))
 
 	server := &http.Server{
 		Addr:     addr,
@@ -128,7 +128,7 @@ func runDebugServer(ctx context.Context, addr string) {
 		if err := server.ListenAndServe(); err != http.ErrServerClosed {
 			l.Panic(err)
 		}
-		l.Print("Server stopped.")
+		l.Info("Server stopped.")
 	}()
 
 	<-ctx.Done()
@@ -161,7 +161,7 @@ func main() {
 
 	l := logrus.WithField("component", "main")
 	ctx, cancel := context.WithCancel(context.Background())
-	defer l.Print("Done.")
+	defer l.Info("Done.")
 
 	// handle termination signals: first one gracefully, force exit on the second one
 	signals := make(chan os.Signal, 1)

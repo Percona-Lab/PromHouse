@@ -117,7 +117,21 @@ func (f *faker) generate(dst io.Writer, src io.Reader) error {
 		for instance := 0; instance < f.instances; instance++ {
 			for i, m := range mf.Metric {
 				nm := proto.Clone(m).(*dto.Metric)
-				nm.Label[len(nm.Label)-1].Value = proto.String(fmt.Sprintf(f.instanceTemplate, instance+1))
+
+				// set instance label value
+				instanceValue := proto.String(fmt.Sprintf(f.instanceTemplate, instance+1))
+				if f.sort {
+					// find label by name
+					for j, l := range nm.Label {
+						if *l.Name == "instance" {
+							nm.Label[j].Value = instanceValue
+							break
+						}
+					}
+				} else {
+					// instance label is always the last one if we are not sorting them
+					nm.Label[len(nm.Label)-1].Value = instanceValue
+				}
 
 				switch *mf.Type {
 				case dto.MetricType_COUNTER:

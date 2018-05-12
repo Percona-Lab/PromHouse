@@ -71,8 +71,8 @@ go_goroutines{instance="instance1"} 38
 go_goroutines{instance="instance2"} 41
 # HELP go_info Information about the Go environment.
 # TYPE go_info gauge
-go_info{instance="",version="instance1"} 1
-go_info{instance="",version="instance2"} 1
+go_info{instance="instance1",version="go1.9.2"} 1
+go_info{instance="instance2",version="go1.9.2"} 1
 # HELP go_memstats_alloc_bytes_total Total number of bytes allocated, even if freed.
 # TYPE go_memstats_alloc_bytes_total counter
 go_memstats_alloc_bytes_total{instance="instance1"} 1.335822613e+09

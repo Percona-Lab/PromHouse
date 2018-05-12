@@ -179,6 +179,10 @@ func (p *PromAPI) convertReadRequest(request *prompb.ReadRequest) []base.Query {
 			}
 		}
 
+		if rq.Hints != nil {
+			p.l.Warnf("Ignoring hint %+v for query %v.", *rq.Hints, q)
+		}
+
 		queries[i] = q
 	}
 

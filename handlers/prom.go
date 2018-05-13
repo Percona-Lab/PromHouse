@@ -19,6 +19,8 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
+	"database/sql/driver"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -193,11 +195,13 @@ func (p *PromAPI) convertReadRequest(request *prompb.ReadRequest) []base.Query {
 
 // errResponseType converts given error to short string used as metric label value.
 func errResponseType(err error) string {
-	switch err {
+	switch errors.Cause(err) {
 	case nil:
 		return "ok"
 	case context.Canceled, context.DeadlineExceeded:
 		return "canceled"
+	case sql.ErrConnDone, sql.ErrNoRows, sql.ErrTxDone, driver.ErrBadConn:
+		return "conn"
 	default:
 		return "other"
 	}

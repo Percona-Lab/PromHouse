@@ -22,6 +22,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -32,25 +33,31 @@ import (
 	"github.com/Percona-Lab/PromHouse/prompb"
 )
 
-// remoteClient reads and writes data from/to Prometheus remote API.
-// For reading from Prometheus prometheusClient should be used instead.
-type remoteClient struct {
+// promHouseClient reads and writes data from/to PromHouse.
+// It uses remote API which is expanded version of Prometheus remote API.
+type promHouseClient struct {
 	l    *logrus.Entry
 	http *http.Client
 	url  string
 
-	start   time.Time
-	end     time.Time
-	step    time.Duration
-	current time.Time
+	readParams  *promHouseClientReadParams
+	readCurrent time.Time
 
 	bMarshaled, bEncoded []byte
 	bRead, bDecoded      []byte
+
+	toWrite  chan []*prompb.TimeSeries
+	writerWG sync.WaitGroup
 }
 
-func newRemoteClient(url string, readStart, readEnd time.Time, readStep time.Duration) *remoteClient {
-	return &remoteClient{
-		l: logrus.WithField("client", "remote"),
+type promHouseClientReadParams struct {
+	start, end time.Time
+	step       time.Duration
+}
+
+func newPromHouseClient(url string, readParams *promHouseClientReadParams) *promHouseClient {
+	client := &promHouseClient{
+		l: logrus.WithField("client", "promhouse"),
 		http: &http.Client{
 			Transport: &http.Transport{
 				MaxIdleConnsPerHost: 100,
@@ -58,39 +65,43 @@ func newRemoteClient(url string, readStart, readEnd time.Time, readStep time.Dur
 		},
 		url: url,
 
-		start:   readStart,
-		end:     readEnd,
-		step:    readStep,
-		current: readStart,
+		readParams: readParams,
 
-		bMarshaled: make([]byte, 1048576),
-		bEncoded:   make([]byte, 1048576),
-		bRead:      make([]byte, 1048576),
-		bDecoded:   make([]byte, 1048576),
+		bMarshaled: make([]byte, 0, 1048576),
+		bEncoded:   make([]byte, 0, 1048576),
+		bRead:      make([]byte, 0, 1048576),
+		bDecoded:   make([]byte, 0, 1048576),
+
+		toWrite: make(chan []*prompb.TimeSeries, 10000),
 	}
+
+	if readParams != nil {
+		client.readCurrent = readParams.start
+	}
+
+	client.writerWG.Add(1)
+	go client.runWriter()
+	return client
 }
 
-func (client *remoteClient) readTS() ([]*prompb.TimeSeries, *readProgress, error) {
-	if client.current.Equal(client.end) {
+func (client *promHouseClient) readTS() ([]*prompb.TimeSeries, *readProgress, error) {
+	if client.readCurrent.Equal(client.readParams.end) {
 		return nil, nil, io.EOF
 	}
 
-	start := client.current
-	end := start.Add(client.step)
-	if end.After(client.end) {
-		end = client.end
+	start := client.readCurrent
+	end := start.Add(client.readParams.step)
+	if end.After(client.readParams.end) {
+		end = client.readParams.end
 	}
-	client.current = end
+	client.readCurrent = end
 
+	// This request is not valid for Prometheus / PromQL, but valid for PromHouse.
+	// See "Empty" test in storages_test.go.
 	request := prompb.ReadRequest{
 		Queries: []*prompb.Query{{
 			StartTimestampMs: int64(model.TimeFromUnixNano(start.UnixNano())),
 			EndTimestampMs:   int64(model.TimeFromUnixNano(end.UnixNano())),
-			Matchers: []*prompb.LabelMatcher{{
-				Type:  prompb.LabelMatcher_RE,
-				Name:  "__name__",
-				Value: ".+",
-			}},
 		}},
 	}
 	client.l.Debugf("Request: %s", request)
@@ -152,13 +163,13 @@ func (client *remoteClient) readTS() ([]*prompb.TimeSeries, *readProgress, error
 	}
 
 	rp := &readProgress{
-		current: uint(client.current.Unix() - client.start.Unix()),
-		max:     uint(client.end.Unix() - client.start.Unix()),
+		current: uint(client.readCurrent.Unix() - client.readParams.start.Unix()),
+		max:     uint(client.readParams.end.Unix() - client.readParams.start.Unix()),
 	}
 	return response.Results[0].TimeSeries, rp, nil
 }
 
-func (client *remoteClient) writeTS(ts []*prompb.TimeSeries) error {
+func (client *promHouseClient) write(ts []*prompb.TimeSeries) error {
 	request := prompb.WriteRequest{
 		TimeSeries: ts,
 	}
@@ -207,13 +218,43 @@ func (client *remoteClient) writeTS(ts []*prompb.TimeSeries) error {
 	return nil
 }
 
-func (client *remoteClient) close() error {
+func (client *promHouseClient) runWriter() {
+	// drain channel
+	defer func() {
+		for range client.toWrite {
+		}
+		client.writerWG.Done()
+	}()
+
+	const maxBatch = 66
+	ts := make([]*prompb.TimeSeries, 0, maxBatch)
+	for {
+		var t []*prompb.TimeSeries
+		for len(ts) < maxBatch {
+			t = <-client.toWrite
+			if t == nil {
+				break
+			}
+			ts = append(ts, t...)
+		}
+		_ = client.write(ts)
+	}
+}
+
+func (client *promHouseClient) writeTS(ts []*prompb.TimeSeries) error {
+	client.toWrite <- ts
+	return nil
+}
+
+func (client *promHouseClient) close() error {
+	close(client.toWrite)
+	client.writerWG.Wait()
 	client.http.Transport.(*http.Transport).CloseIdleConnections()
 	return nil
 }
 
 // check interfaces
 var (
-	_ tsReader = (*remoteClient)(nil)
-	_ tsWriter = (*remoteClient)(nil)
+	_ tsReader = (*promHouseClient)(nil)
+	_ tsWriter = (*promHouseClient)(nil)
 )

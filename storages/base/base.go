@@ -101,28 +101,6 @@ func (ms Matchers) String() string {
 }
 
 func (ms Matchers) MatchLabels(labels []*prompb.Label) bool {
-	// TODO if both matchers and labels are sorted by label name, we can optimize that method
-
-	// We expect that from Prometheus (from https://prometheus.io/docs/querying/basics/):
-	// * Label matchers that match empty label values also select all time series that do not have the specific label set at all.
-	// * At least one matcher should have non-empty label value.
-	// Check it.
-	if len(ms) == 0 {
-		panic("MatchLabels: empty matchers")
-	}
-	var hasValue bool
-	for _, m := range ms {
-		if m.Name == "" {
-			panic("MatchLabels: empty label name")
-		}
-		if m.Value != "" {
-			hasValue = true
-		}
-	}
-	if !hasValue {
-		panic("MatchLabels: all labels has empty values")
-	}
-
 	for _, m := range ms {
 		if (m.re == nil) && (m.Type == MatchRegexp || m.Type == MatchNotRegexp) {
 			m.re = regexp.MustCompile("^(?:" + m.Value + ")$")

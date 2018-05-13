@@ -56,12 +56,14 @@ func parseArg(arg string) (string, string, error) {
 	case "file":
 		f := strings.TrimPrefix(arg, t+":")
 		return t, f, nil
-	case "remote":
+	case "promhouse":
 		u := strings.TrimPrefix(arg, t+":")
 		if _, err := url.Parse(u); err != nil {
 			return "", "", err
 		}
 		return t, u, nil
+	case "null":
+		return t, "", nil
 	default:
 		return "", "", fmt.Errorf("unexpected type")
 	}
@@ -72,23 +74,34 @@ func main() {
 	log.SetPrefix("stdlog: ")
 
 	var (
-		// remote:http://127.0.0.1:9090/api/v1/read for Prometheus
-		sourceArg      = kingpin.Arg("source", "Read data from that source\n\tfile:data.bin for local file\n\tremote:http://127.0.0.1:7781/read for remote storage").Required().String()
-		destinationArg = kingpin.Arg("destination", "Write data to that destination\n\tfile:data.bin for local file\n\tremote:http://127.0.0.1:7781/write for remote storage").Required().String()
-
-		lastF = duration.FromFlag(kingpin.Flag("source.remote.last", "Remote source: read from that time ago").Default("30d"))
-		stepF = duration.FromFlag(kingpin.Flag("source.remote.step", "Remote source: interval for a single request").Default("1m"))
-
 		logLevelF = kingpin.Flag("log.level", "Log level").Default("info").String()
+
+		copyCmd = kingpin.Command("copy", "Copy metrics.")
+		// remote:http://127.0.0.1:9090/api/v1/read for Prometheus
+		sourceHelp = `Read data from that source
+	file:data.bin for local file
+	promhouse:http://127.0.0.1:7781/read for PromHouse`
+		destinationHelp = `Write data to that destination
+	file:data.bin for local file
+	promhouse:http://127.0.0.1:7781/write for PromHouse
+	null for /dev/null`
+		sourceArg      = copyCmd.Arg("source", sourceHelp).Required().String()
+		destinationArg = copyCmd.Arg("destination", destinationHelp).Required().String()
+
+		lastF = duration.FromFlag(copyCmd.Flag("source.promhouse.last", "PromHouse source: read from that time ago").Default("30d"))
+		stepF = duration.FromFlag(copyCmd.Flag("source.promhouse.step", "PromHouse source: interval for a single request").Default("1m"))
 	)
+	kingpin.CommandLine.Help = "Prometheus data import/export and load testing utility."
 	kingpin.CommandLine.HelpFlag.Short('h')
 	kingpin.Parse()
 
-	level, err := logrus.ParseLevel(*logLevelF)
-	if err != nil {
-		logrus.Fatal(err)
+	{
+		level, err := logrus.ParseLevel(*logLevelF)
+		if err != nil {
+			logrus.Fatal(err)
+		}
+		logrus.SetLevel(level)
 	}
-	logrus.SetLevel(level)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer logrus.Print("Done.")
@@ -122,11 +135,18 @@ func main() {
 			logrus.Infof("Reading metrics from %s %s.", sourceType, sourceAddr)
 			reader = newFileClient(f)
 
-		case "remote":
+		case "promhouse":
 			end := time.Now().Truncate(time.Minute)
 			start := end.Add(-time.Duration(*lastF))
 			logrus.Infof("Reading metrics from %s %s between %s and %s with step %s.", sourceType, sourceAddr, start, end, *stepF)
-			reader = newRemoteClient(sourceAddr, start, end, time.Duration(*stepF))
+			reader = newPromHouseClient(sourceAddr, &promHouseClientReadParams{
+				start: start,
+				end:   end,
+				step:  time.Duration(*stepF),
+			})
+
+		case "null":
+			logrus.Fatal("Can't read from /dev/null.")
 
 		default:
 			panic("not reached")
@@ -147,16 +167,20 @@ func main() {
 			logrus.Infof("Writing metrics to %s %s.", destinationType, destinationAddr)
 			writer = newFileClient(f)
 
-		case "remote":
+		case "promhouse":
 			logrus.Infof("Writing metrics to %s %s.", destinationType, destinationAddr)
-			writer = newRemoteClient(destinationAddr, time.Time{}, time.Time{}, 0)
+			writer = newPromHouseClient(destinationAddr, nil)
+
+		case "null":
+			logrus.Infof("Writing metrics to /dev/null.")
+			writer = newNullClient()
 
 		default:
 			panic("not reached")
 		}
 	}
 
-	ch := make(chan []*prompb.TimeSeries, 100)
+	ch := make(chan []*prompb.TimeSeries, 10)
 	var lastReport time.Time
 	go func() {
 		for {
@@ -183,16 +207,19 @@ func main() {
 				}
 			}
 
-			ch <- ts
+			if len(ts) > 0 {
+				ch <- ts
+			}
 		}
 	}()
 
 	for ts := range ch {
 		if err := writer.writeTS(ts); err != nil {
 			logrus.Errorf("Write error: %+v", err)
+			cancel()
 		}
 	}
-	if err = writer.close(); err != nil {
+	if err := writer.close(); err != nil {
 		logrus.Errorf("Writer close error: %+v", err)
 	}
 }

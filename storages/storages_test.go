@@ -102,10 +102,6 @@ func TestStorages(t *testing.T) {
 		},
 	} {
 		t.Run(storageName, func(t *testing.T) {
-			// We expect that from Prometheus (from https://prometheus.io/docs/querying/basics/):
-			// * Label matchers that match empty label values also select all time series that do not have the specific label set at all.
-			// * At least one matcher should have non-empty label value.
-
 			storage, err := newStorage()
 			require.NoError(t, err)
 
@@ -133,8 +129,8 @@ func TestStorages(t *testing.T) {
 							End:   end,
 							Matchers: []base.Matcher{{
 								Name:  "__name__",
-								Type:  base.MatchNotEqual,
-								Value: "no_such_metric",
+								Type:  base.MatchRegexp,
+								Value: "http_requests_.+",
 							}},
 						},
 					} {
@@ -163,7 +159,17 @@ func TestStorages(t *testing.T) {
 								Value: "no_such_metric",
 							}},
 						},
-						{ // TODO should it return 3 series with 0 values, or 0 values?
+						{
+							Start: start,
+							End:   end,
+							Matchers: []base.Matcher{{
+								Name:  "__name__",
+								Type:  base.MatchRegexp,
+								Value: "_requests_",
+							}},
+						},
+						{
+							// TODO should it return 3 series with 0 values, or 0 values?
 							Start: 0,
 							End:   0,
 							Matchers: []base.Matcher{{
@@ -173,86 +179,12 @@ func TestStorages(t *testing.T) {
 							}},
 						},
 						{
-							Start: start,
-							End:   end,
-							Matchers: []base.Matcher{{
-								Name:  "__name__",
-								Type:  base.MatchNotEqual,
-								Value: "http_requests_total",
-							}},
-						},
-					} {
-						t.Run(q.String(), func(t *testing.T) {
-							data, err := storage.Read(context.Background(), []base.Query{q})
-							require.NoError(t, err)
-							require.Len(t, data.Results, 1)
-							require.Len(t, data.Results[0].TimeSeries, 0)
-						})
-					}
-				})
-
-				t.Run("ByNameRegexp", func(t *testing.T) {
-					// queries returning all data
-					for _, q := range []base.Query{
-						{
-							Start: start,
-							End:   end,
-							Matchers: []base.Matcher{{
-								Name:  "__name__",
-								Type:  base.MatchRegexp,
-								Value: "http_requests_.+",
-							}},
-						},
-						{
-							Start: start,
-							End:   end,
-							Matchers: []base.Matcher{{
-								Name:  "__name__",
-								Type:  base.MatchNotRegexp,
-								Value: "_requests_",
-							}},
-						},
-					} {
-						t.Run(q.String(), func(t *testing.T) {
-							data, err := storage.Read(context.Background(), []base.Query{q})
-							require.NoError(t, err)
-							require.Len(t, data.Results, 1)
-							require.Len(t, data.Results[0].TimeSeries, 3)
-							sortTimeSeries(data.Results[0].TimeSeries)
-							for i, actual := range data.Results[0].TimeSeries {
-								base.SortLabels(actual.Labels)
-								expected := storedData.TimeSeries[i]
-								assert.Equal(t, expected, actual, messageTS(expected, actual))
-							}
-						})
-					}
-
-					// queries returning nothing
-					for _, q := range []base.Query{
-						{
-							Start: start,
-							End:   end,
-							Matchers: []base.Matcher{{
-								Name:  "__name__",
-								Type:  base.MatchRegexp,
-								Value: "_requests_",
-							}},
-						},
-						{ // TODO should it return 3 series with 0 values, or 0 values?
+							// TODO should it return 3 series with 0 values, or 0 values?
 							Start: 0,
 							End:   0,
 							Matchers: []base.Matcher{{
 								Name:  "__name__",
 								Type:  base.MatchRegexp,
-								Value: "http_requests_.+",
-							}},
-						},
-						{
-							Start: start,
-							End:   end,
-							Matchers: []base.Matcher{{
-								Name:  "__name__",
-								Type:  base.MatchNotRegexp,
 								Value: "http_requests_.+",
 							}},
 						},
@@ -274,7 +206,16 @@ func TestStorages(t *testing.T) {
 							Matchers: []base.Matcher{{
 								Name:  "no_such_label",
 								Type:  base.MatchEqual,
-								Value: "query",
+								Value: "value",
+							}},
+						},
+						{
+							Start: start,
+							End:   end,
+							Matchers: []base.Matcher{{
+								Name:  "no_such_label",
+								Type:  base.MatchRegexp,
+								Value: "value",
 							}},
 						},
 					} {
@@ -344,6 +285,100 @@ func TestStorages(t *testing.T) {
 								expected := storedData.TimeSeries[i]
 								assert.Equal(t, expected, actual, messageTS(expected, actual))
 							}
+						})
+					}
+				})
+
+				t.Run("Empty", func(t *testing.T) {
+					// We can expect the following from Prometheus (from https://prometheus.io/docs/querying/basics/):
+					//   * Label matchers that match empty label values also select all time series that do not have the specific label set at all.
+					//   * At least one matcher should have non-empty label value.
+					// See also test cases at https://github.com/prometheus/prometheus/blob/v2.2.1/promql/parse_test.go#L919-L939
+					// But as an extension we allow such cases because they are useful for querying data and load tests.
+
+					// queries returning all data
+					for _, q := range []base.Query{
+						{
+							Start: start,
+							End:   end,
+						},
+						{
+							Start: start,
+							End:   end,
+							Matchers: []base.Matcher{{
+								Name:  "__name__",
+								Type:  base.MatchNotEqual,
+								Value: "",
+							}},
+						},
+						{
+							Start: start,
+							End:   end,
+							Matchers: []base.Matcher{{
+								Name:  "__name__",
+								Type:  base.MatchNotEqual,
+								Value: "no_such_metric",
+							}},
+						},
+						{
+							Start: start,
+							End:   end,
+							Matchers: []base.Matcher{{
+								Name:  "no_such_label",
+								Type:  base.MatchEqual,
+								Value: "",
+							}},
+						},
+						{
+							Start: start,
+							End:   end,
+							Matchers: []base.Matcher{{
+								Name:  "no_such_label",
+								Type:  base.MatchNotEqual,
+								Value: "value",
+							}},
+						},
+					} {
+						t.Run(q.String(), func(t *testing.T) {
+							data, err := storage.Read(context.Background(), []base.Query{q})
+							require.NoError(t, err)
+							require.Len(t, data.Results, 1)
+							require.Len(t, data.Results[0].TimeSeries, 3)
+							sortTimeSeries(data.Results[0].TimeSeries)
+							for i, actual := range data.Results[0].TimeSeries {
+								base.SortLabels(actual.Labels)
+								expected := storedData.TimeSeries[i]
+								assert.Equal(t, expected, actual, messageTS(expected, actual))
+							}
+						})
+					}
+
+					// queries returning nothing
+					for _, q := range []base.Query{
+						{
+							Start: start,
+							End:   end,
+							Matchers: []base.Matcher{{
+								Name:  "__name__",
+								Type:  base.MatchEqual,
+								Value: "",
+							}},
+						},
+						{
+							Start: start,
+							End:   end,
+							Matchers: []base.Matcher{{
+								Name:  "no_such_label",
+								Type:  base.MatchNotEqual,
+								Value: "",
+							}},
+						},
+					} {
+						t.Run(q.String(), func(t *testing.T) {
+							data, err := storage.Read(context.Background(), []base.Query{q})
+							require.NoError(t, err)
+							require.Len(t, data.Results, 1)
+							require.Len(t, data.Results[0].TimeSeries, 0)
 						})
 					}
 				})

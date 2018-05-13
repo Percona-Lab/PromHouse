@@ -22,11 +22,11 @@ package main
 import (
 	"bytes"
 	"context"
-	_ "expvar"
+	_ "expvar" // for /debug/expvar
 	"html/template"
 	"log"
 	"net/http"
-	_ "net/http/pprof"
+	_ "net/http/pprof" // for /debug/pprof
 	"os"
 	"os/signal"
 	"strings"
@@ -94,7 +94,7 @@ func runDebugServer(ctx context.Context, addr string) {
 	http.Handle("/debug/metrics", promhttp.Handler())
 
 	handlers := []string{
-		"/debug/metrics", "/debug/vars", "/debug/requests", "/debug/events", "/debug/pprof",
+		"/debug/metrics", "/debug/vars", "/debug/pprof",
 	}
 	for i, h := range handlers {
 		handlers[i] = "http://" + addr + h

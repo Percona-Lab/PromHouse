@@ -73,6 +73,7 @@ func NewPromAPI(storage base.Storage, l *logrus.Entry) *PromAPI {
 			Subsystem: subsystem,
 			Name:      "reads",
 			Help:      "Durations of reads by result type: ok, canceled, other.",
+			MaxAge:    time.Minute,
 		}, []string{"type"}),
 
 		mWritesStarted: prometheus.NewCounter(prometheus.CounterOpts{
@@ -86,6 +87,7 @@ func NewPromAPI(storage base.Storage, l *logrus.Entry) *PromAPI {
 			Subsystem: subsystem,
 			Name:      "writes",
 			Help:      "Durations of writes by result type: ok, canceled, other.",
+			MaxAge:    time.Minute,
 		}, []string{"type"}),
 		mWrittenSamples: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: namespace,

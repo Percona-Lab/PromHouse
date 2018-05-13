@@ -154,7 +154,7 @@ func New(params *Params) (base.Storage, error) {
 }
 
 func (ch *clickHouse) runTimeSeriesReloader(ctx context.Context) {
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
 	q := fmt.Sprintf(`SELECT DISTINCT fingerprint, labels FROM %s.time_series`, ch.database)

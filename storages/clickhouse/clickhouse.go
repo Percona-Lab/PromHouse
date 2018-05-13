@@ -321,8 +321,9 @@ func (ch *clickHouse) tempTableSamples(ctx context.Context, start, end int64, fi
 		CREATE TEMPORARY TABLE %s (
 			fingerprint UInt64
 		)`, tableName)
-
-	if _, err = conn.ExecContext(ctx, strings.TrimSpace(query)); err != nil {
+	query = strings.TrimSpace(query)
+	ch.l.Debugf("%s", query)
+	if _, err = conn.ExecContext(ctx, query); err != nil {
 		return nil, errors.WithStack(err)
 	}
 
@@ -336,6 +337,7 @@ func (ch *clickHouse) tempTableSamples(ctx context.Context, start, end int64, fi
 		}
 
 		for f := range fingerprints {
+			ch.l.Debugf("%s %v", query, f)
 			if _, err = stmt.ExecContext(ctx, f); err != nil {
 				return errors.WithStack(err)
 			}

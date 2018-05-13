@@ -172,7 +172,7 @@ func main() {
 		cancel()
 
 		s = <-signals
-		l.Panicf("Got %s, exiting!", s, unix.SignalName(s.(syscall.Signal)))
+		l.Panicf("Got %s, exiting!", unix.SignalName(s.(syscall.Signal)))
 	}()
 
 	// start servers, wait for them to exit

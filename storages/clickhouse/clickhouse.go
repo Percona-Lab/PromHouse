@@ -337,7 +337,7 @@ func (ch *clickHouse) tempTableSamples(ctx context.Context, start, end int64, fi
 		}
 
 		for f := range fingerprints {
-			ch.l.Debugf("%s %v", query, f)
+			// ch.l.Debugf("%s %v", query, f)
 			if _, err = stmt.ExecContext(ctx, f); err != nil {
 				return errors.WithStack(err)
 			}
@@ -461,8 +461,8 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) erro
 			args[0] = model.Now().Time()
 			for _, f := range newTimeSeries {
 				args[1] = f
-				args[2] = marshalLabels(timeSeries[f], make([]byte, 0, 128)) // TODO use pool?
-				ch.l.Debugf("%s %v", query, args)
+				args[2] = marshalLabels(timeSeries[f], make([]byte, 0, 128))
+				// ch.l.Debugf("%s %v", query, args)
 				if _, err := stmt.ExecContext(ctx, args...); err != nil {
 					return errors.WithStack(err)
 				}
@@ -491,7 +491,7 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) erro
 			for _, s := range ts.Samples {
 				args[1] = s.TimestampMs
 				args[2] = s.Value
-				ch.l.Debugf("%s %v", query, args)
+				// ch.l.Debugf("%s %v", query, args)
 				if _, err := stmt.ExecContext(ctx, args...); err != nil {
 					return errors.WithStack(err)
 				}

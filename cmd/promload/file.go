@@ -54,10 +54,10 @@ func newFileClient(f *os.File) *fileClient {
 		r:          bufio.NewReader(f),
 		w:          bufio.NewWriter(f),
 		fSize:      fSize,
-		bRead:      make([]byte, 1048576),
-		bDecoded:   make([]byte, 1048576),
-		bMarshaled: make([]byte, 1048576),
-		bEncoded:   make([]byte, 1048576),
+		bRead:      make([]byte, 0, 1048576),
+		bDecoded:   make([]byte, 0, 1048576),
+		bMarshaled: make([]byte, 0, 1048576),
+		bEncoded:   make([]byte, 0, 1048576),
 	}
 }
 

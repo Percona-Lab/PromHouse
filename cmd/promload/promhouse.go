@@ -18,11 +18,11 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -45,9 +45,6 @@ type promHouseClient struct {
 
 	bMarshaled, bEncoded []byte
 	bRead, bDecoded      []byte
-
-	toWrite  chan []*prompb.TimeSeries
-	writerWG sync.WaitGroup
 }
 
 type promHouseClientReadParams struct {
@@ -71,22 +68,18 @@ func newPromHouseClient(url string, readParams *promHouseClientReadParams) *prom
 		bEncoded:   make([]byte, 0, 1048576),
 		bRead:      make([]byte, 0, 1048576),
 		bDecoded:   make([]byte, 0, 1048576),
-
-		toWrite: make(chan []*prompb.TimeSeries, 10000),
 	}
 
 	if readParams != nil {
 		client.readCurrent = readParams.start
 	}
 
-	client.writerWG.Add(1)
-	go client.runWriter()
 	return client
 }
 
-func (client *promHouseClient) readTS() ([]*prompb.TimeSeries, *readProgress, error) {
+func (client *promHouseClient) readTS() tsReadData {
 	if client.readCurrent.Equal(client.readParams.end) {
-		return nil, nil, io.EOF
+		return tsReadData{err: io.EOF}
 	}
 
 	start := client.readCurrent
@@ -116,10 +109,10 @@ func (client *promHouseClient) readTS() ([]*prompb.TimeSeries, *readProgress, er
 	}
 	size, err = request.MarshalTo(client.bMarshaled)
 	if err != nil {
-		return nil, nil, err
+		return tsReadData{err: err}
 	}
 	if request.Size() != size {
-		return nil, nil, fmt.Errorf("unexpected size: expected %d, got %d", request.Size(), size)
+		return tsReadData{err: fmt.Errorf("unexpected size: expected %d, got %d", request.Size(), size)}
 	}
 
 	// encode request reusing bEncoded
@@ -128,48 +121,66 @@ func (client *promHouseClient) readTS() ([]*prompb.TimeSeries, *readProgress, er
 
 	req, err := http.NewRequest("POST", client.url, bytes.NewReader(client.bEncoded))
 	if err != nil {
-		return nil, nil, err
+		return tsReadData{err: err}
 	}
 	req.Header.Set("Content-Type", "application/x-protobuf")
 	req.Header.Set("Content-Encoding", "snappy")
 
 	resp, err := client.http.Do(req)
 	if err != nil {
-		return nil, nil, err
+		return tsReadData{err: err}
 	}
 	defer resp.Body.Close()
 
 	// read response reusing bRead
 	buf := bytes.NewBuffer(client.bRead[:0])
 	if _, err = buf.ReadFrom(resp.Body); err != nil {
-		return nil, nil, err
+		return tsReadData{err: err}
 	}
 	client.bRead = buf.Bytes()
 	if resp.StatusCode != 200 {
-		return nil, nil, fmt.Errorf("%d: %s", resp.StatusCode, client.bRead)
+		return tsReadData{err: fmt.Errorf("%d: %s", resp.StatusCode, client.bRead)}
 	}
 
 	// decode response reusing bDecoded
 	client.bDecoded = client.bDecoded[:cap(client.bDecoded)]
 	client.bDecoded, err = snappy.Decode(client.bDecoded, client.bRead)
 	if err != nil {
-		return nil, nil, err
+		return tsReadData{err: err}
 	}
 
 	// unmarshal message
 	var response prompb.ReadResponse
 	if err = proto.Unmarshal(client.bDecoded, &response); err != nil {
-		return nil, nil, err
+		return tsReadData{err: err}
 	}
 
 	rp := &readProgress{
 		current: uint(client.readCurrent.Unix() - client.readParams.start.Unix()),
 		max:     uint(client.readParams.end.Unix() - client.readParams.start.Unix()),
 	}
-	return response.Results[0].TimeSeries, rp, nil
+	return tsReadData{
+		ts:      response.Results[0].TimeSeries,
+		current: rp.current,
+		max:     rp.max,
+	}
 }
 
-func (client *promHouseClient) write(ts []*prompb.TimeSeries) error {
+func (client *promHouseClient) runReader(ctx context.Context, ch chan<- tsReadData) {
+	for {
+		data := client.readTS()
+		if data.err == nil {
+			data.err = ctx.Err()
+		}
+		ch <- data
+		if data.err != nil {
+			close(ch)
+			return
+		}
+	}
+}
+
+func (client *promHouseClient) writeTS(ts []*prompb.TimeSeries) error {
 	request := prompb.WriteRequest{
 		TimeSeries: ts,
 	}
@@ -218,37 +229,7 @@ func (client *promHouseClient) write(ts []*prompb.TimeSeries) error {
 	return nil
 }
 
-func (client *promHouseClient) runWriter() {
-	// drain channel
-	defer func() {
-		for range client.toWrite {
-		}
-		client.writerWG.Done()
-	}()
-
-	const maxBatch = 66
-	ts := make([]*prompb.TimeSeries, 0, maxBatch)
-	for {
-		var t []*prompb.TimeSeries
-		for len(ts) < maxBatch {
-			t = <-client.toWrite
-			if t == nil {
-				break
-			}
-			ts = append(ts, t...)
-		}
-		_ = client.write(ts)
-	}
-}
-
-func (client *promHouseClient) writeTS(ts []*prompb.TimeSeries) error {
-	client.toWrite <- ts
-	return nil
-}
-
 func (client *promHouseClient) close() error {
-	close(client.toWrite)
-	client.writerWG.Wait()
 	client.http.Transport.(*http.Transport).CloseIdleConnections()
 	return nil
 }

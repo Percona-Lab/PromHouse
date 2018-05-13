@@ -18,6 +18,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -61,15 +62,15 @@ func newFileClient(f *os.File) *fileClient {
 	}
 }
 
-func (client *fileClient) readTS() ([]*prompb.TimeSeries, *readProgress, error) {
+func (client *fileClient) readTS() tsReadData {
 	// read next message reusing bRead
 	var err error
 	var size uint32
 	if err = binary.Read(client.r, binary.BigEndian, &size); err != nil {
 		if err == io.EOF {
-			return nil, nil, err
+			return tsReadData{err: err}
 		}
-		return nil, nil, errors.Wrap(err, "failed to read message size")
+		return tsReadData{err: errors.Wrap(err, "failed to read message size")}
 	}
 	if uint32(cap(client.bRead)) >= size {
 		client.bRead = client.bRead[:size]
@@ -77,20 +78,20 @@ func (client *fileClient) readTS() ([]*prompb.TimeSeries, *readProgress, error) 
 		client.bRead = make([]byte, size)
 	}
 	if _, err = io.ReadFull(client.r, client.bRead); err != nil {
-		return nil, nil, errors.Wrap(err, "failed to read message")
+		return tsReadData{err: errors.Wrap(err, "failed to read message")}
 	}
 
 	// decode message reusing bDecoded
 	client.bDecoded = client.bDecoded[:cap(client.bDecoded)]
 	client.bDecoded, err = snappy.Decode(client.bDecoded, client.bRead)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to decode message")
+		return tsReadData{err: errors.Wrap(err, "failed to decode message")}
 	}
 
 	// unmarshal message
 	var ts prompb.TimeSeries
 	if err = proto.Unmarshal(client.bDecoded, &ts); err != nil {
-		return nil, nil, errors.Wrap(err, "failed to unmarshal message")
+		return tsReadData{err: errors.Wrap(err, "failed to unmarshal message")}
 	}
 
 	// update progress
@@ -105,7 +106,25 @@ func (client *fileClient) readTS() ([]*prompb.TimeSeries, *readProgress, error) 
 		}
 	}
 
-	return []*prompb.TimeSeries{&ts}, rp, nil
+	return tsReadData{
+		ts:      []*prompb.TimeSeries{&ts},
+		current: rp.current,
+		max:     rp.max,
+	}
+}
+
+func (client *fileClient) runReader(ctx context.Context, ch chan<- tsReadData) {
+	for {
+		data := client.readTS()
+		if data.err == nil {
+			data.err = ctx.Err()
+		}
+		ch <- data
+		if data.err != nil {
+			close(ch)
+			return
+		}
+	}
 }
 
 func (client *fileClient) writeTS(ts []*prompb.TimeSeries) error {
@@ -142,14 +161,15 @@ func (client *fileClient) writeTS(ts []*prompb.TimeSeries) error {
 }
 
 func (client *fileClient) close() error {
+	// always flush, sync, close; return first error
 	var err error
-	if e := client.w.Flush(); e != nil {
+	if e := client.w.Flush(); err == nil {
 		err = errors.Wrap(e, "failed to flush")
 	}
-	if e := client.f.Sync(); e != nil {
+	if e := client.f.Sync(); err == nil {
 		err = errors.Wrap(e, "failed to sync")
 	}
-	if e := client.f.Close(); e != nil {
+	if e := client.f.Close(); err == nil {
 		err = errors.Wrap(e, "failed to close")
 	}
 	return err

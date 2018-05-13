@@ -40,8 +40,14 @@ type readProgress struct {
 	current, max uint
 }
 
+type tsReadData struct {
+	ts           []*prompb.TimeSeries
+	current, max uint
+	err          error
+}
+
 type tsReader interface {
-	readTS() ([]*prompb.TimeSeries, *readProgress, error)
+	runReader(context.Context, chan<- tsReadData)
 	close() error
 }
 
@@ -115,7 +121,7 @@ func main() {
 		cancel()
 
 		s = <-signals
-		logrus.Panicf("Got %s, exiting!", s, unix.SignalName(s.(syscall.Signal)))
+		logrus.Panicf("Got %s, exiting!", unix.SignalName(s.(syscall.Signal)))
 	}()
 
 	var reader tsReader
@@ -180,43 +186,34 @@ func main() {
 		}
 	}
 
-	ch := make(chan []*prompb.TimeSeries, 10)
+	ch := make(chan tsReadData, 10)
+	go reader.runReader(ctx, ch)
+
 	var lastReport time.Time
-	go func() {
-		for {
-			ts, rp, err := reader.readTS()
-			if err == nil {
-				err = ctx.Err()
+	for data := range ch {
+		if data.err != nil {
+			if data.err != io.EOF {
+				logrus.Errorf("Read error: %+v", data.err)
 			}
-			if err != nil {
-				if err != io.EOF {
-					logrus.Errorf("Read error: %+v", err)
-				}
-				if err = reader.close(); err != nil {
-					logrus.Errorf("Reader close error: %+v", err)
-				}
-				close(ch)
-				return
+			if err := reader.close(); err != nil {
+				logrus.Errorf("Reader close error: %+v", err)
 			}
+			break
+		}
 
-			if rp != nil && rp.max > 0 {
-				if time.Since(lastReport) > 10*time.Second {
-					lastReport = time.Now()
-					logrus.Infof("Read %.2f%% (%d / %d), write buffer: %d / %d.",
-						float64(rp.current*100)/float64(rp.max), rp.current, rp.max, len(ch), cap(ch))
-				}
-			}
-
-			if len(ts) > 0 {
-				ch <- ts
+		if data.max > 0 {
+			if time.Since(lastReport) > 10*time.Second {
+				lastReport = time.Now()
+				logrus.Infof("Read %.2f%% (%d / %d), write buffer: %d / %d.",
+					float64(data.current*100)/float64(data.max), data.current, data.max, len(ch), cap(ch))
 			}
 		}
-	}()
 
-	for ts := range ch {
-		if err := writer.writeTS(ts); err != nil {
-			logrus.Errorf("Write error: %+v", err)
-			cancel()
+		if len(data.ts) > 0 {
+			if err := writer.writeTS(data.ts); err != nil {
+				logrus.Errorf("Write error: %+v", err)
+				cancel()
+			}
 		}
 	}
 	if err := writer.close(); err != nil {

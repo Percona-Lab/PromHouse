@@ -17,15 +17,22 @@
 package main
 
 import (
+	"fmt"
+
+	"github.com/sirupsen/logrus"
+
 	"github.com/Percona-Lab/PromHouse/prompb"
 )
 
 // nullClient does nothing.
 type nullClient struct {
+	l *logrus.Entry
 }
 
 func newNullClient() *nullClient {
-	return new(nullClient)
+	return &nullClient{
+		l: logrus.WithField("client", fmt.Sprintf("null")),
+	}
 }
 
 func (client *nullClient) writeTS(ts []*prompb.TimeSeries) error {

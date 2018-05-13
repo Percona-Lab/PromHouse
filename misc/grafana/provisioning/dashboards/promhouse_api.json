@@ -370,7 +370,6 @@
           "expr": "increase(promhouse_api_writes_count{type!=\"ok\"}[1m])",
           "format": "time_series",
           "instant": false,
-          "interval": "",
           "intervalFactor": 1,
           "legendFormat": "Rate {{ type }}",
           "refId": "A"
@@ -457,7 +456,6 @@
           "expr": "promhouse_api_reads{type=\"ok\"}",
           "format": "time_series",
           "instant": false,
-          "interval": "",
           "intervalFactor": 1,
           "legendFormat": "{{ quantile }}φ",
           "refId": "A"
@@ -544,7 +542,6 @@
           "expr": "promhouse_api_writes{type=\"ok\"}",
           "format": "time_series",
           "instant": false,
-          "interval": "1s",
           "intervalFactor": 1,
           "legendFormat": "{{ quantile }}φ",
           "refId": "A"

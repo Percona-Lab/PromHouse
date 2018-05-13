@@ -6,6 +6,7 @@ datasources:
   type: prometheus
   access: direct
   url: http://127.0.0.1:9090
-  timeInterval: 1s
   isDefault: true
   editable: true
+  jsonData:
+    timeInterval: 1s

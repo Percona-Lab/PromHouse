@@ -37,8 +37,8 @@ import (
 // It uses remote API which is expanded version of Prometheus remote API.
 type promHouseClient struct {
 	l    *logrus.Entry
-	http *http.Client
 	url  string
+	http *http.Client
 
 	readParams  *promHouseClientReadParams
 	readCurrent time.Time
@@ -54,13 +54,13 @@ type promHouseClientReadParams struct {
 
 func newPromHouseClient(url string, readParams *promHouseClientReadParams) *promHouseClient {
 	client := &promHouseClient{
-		l: logrus.WithField("client", "promhouse"),
+		l:   logrus.WithField("client", "promhouse"),
+		url: url,
 		http: &http.Client{
 			Transport: &http.Transport{
 				MaxIdleConnsPerHost: 100,
 			},
 		},
-		url: url,
 
 		readParams: readParams,
 

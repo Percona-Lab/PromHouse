@@ -62,7 +62,7 @@ func parseArg(arg string) (string, string, error) {
 	case "file":
 		f := strings.TrimPrefix(arg, t+":")
 		return t, f, nil
-	case "promhouse":
+	case "promhouse", "exporter":
 		u := strings.TrimPrefix(arg, t+":")
 		if _, err := url.Parse(u); err != nil {
 			return "", "", err
@@ -86,7 +86,8 @@ func main() {
 		// remote:http://127.0.0.1:9090/api/v1/read for Prometheus
 		sourceHelp = `Read data from that source
 	file:data.bin for local file
-	promhouse:http://127.0.0.1:7781/read for PromHouse`
+	promhouse:http://127.0.0.1:7781/read for PromHouse
+	exporter:http://127.0.0.1:9100/metrics for exporter`
 		destinationHelp = `Write data to that destination
 	file:data.bin for local file
 	promhouse:http://127.0.0.1:7781/write for PromHouse
@@ -94,8 +95,9 @@ func main() {
 		sourceArg      = copyCmd.Arg("source", sourceHelp).Required().String()
 		destinationArg = copyCmd.Arg("destination", destinationHelp).Required().String()
 
-		lastF = duration.FromFlag(copyCmd.Flag("source.promhouse.last", "PromHouse source: read from that time ago").Default("30d"))
-		stepF = duration.FromFlag(copyCmd.Flag("source.promhouse.step", "PromHouse source: interval for a single request").Default("1m"))
+		lastF  = duration.FromFlag(copyCmd.Flag("source.promhouse.last", "PromHouse source: read from that time ago").Default("30d"))
+		stepF  = duration.FromFlag(copyCmd.Flag("source.promhouse.step", "PromHouse source: interval for a single request").Default("1m"))
+		cacheF = copyCmd.Flag("source.cache", "Source: cache last data until new one is available").Bool()
 	)
 	kingpin.CommandLine.Help = "Prometheus data import/export and load testing utility."
 	kingpin.CommandLine.HelpFlag.Short('h')
@@ -151,6 +153,10 @@ func main() {
 				step:  time.Duration(*stepF),
 			})
 
+		case "exporter":
+			logrus.Infof("Reading metrics from %s %s.", sourceType, sourceAddr)
+			reader = newExporterClient(sourceAddr, &exporterClientReadParams{})
+
 		case "null":
 			logrus.Fatal("Can't read from /dev/null.")
 
@@ -177,6 +183,9 @@ func main() {
 			logrus.Infof("Writing metrics to %s %s.", destinationType, destinationAddr)
 			writer = newPromHouseClient(destinationAddr, nil)
 
+		case "exporter":
+			logrus.Fatal("Can't write to exporter.")
+
 		case "null":
 			logrus.Infof("Writing metrics to /dev/null.")
 			writer = newNullClient()
@@ -190,7 +199,23 @@ func main() {
 	go reader.runReader(ctx, ch)
 
 	var lastReport time.Time
-	for data := range ch {
+	var data tsReadData
+	var ok bool
+	for {
+		if *cacheF && len(data.ts) > 0 {
+			// replace data with new data if it is available; do not block
+			select {
+			case data, ok = <-ch:
+			default:
+			}
+		} else {
+			// replace data with new data
+			data, ok = <-ch
+		}
+		if !ok {
+			break
+		}
+
 		if data.err != nil {
 			if data.err != io.EOF {
 				logrus.Errorf("Read error: %+v", data.err)

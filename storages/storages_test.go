@@ -33,6 +33,7 @@ import (
 	"github.com/Percona-Lab/PromHouse/storages/clickhouse"
 	"github.com/Percona-Lab/PromHouse/storages/memory"
 	"github.com/Percona-Lab/PromHouse/storages/test"
+	"github.com/Percona-Lab/PromHouse/utils/timeseries"
 )
 
 // sortTimeSeries sorts timeseries by metric name and fingerprint.
@@ -55,9 +56,9 @@ func sortTimeSeries(timeSeries []*prompb.TimeSeries) {
 			return nameI < nameJ
 		}
 
-		base.SortLabels(timeSeries[i].Labels)
-		base.SortLabels(timeSeries[j].Labels)
-		return base.Fingerprint(timeSeries[i].Labels) < base.Fingerprint(timeSeries[j].Labels)
+		timeseries.SortLabels(timeSeries[i].Labels)
+		timeseries.SortLabels(timeSeries[j].Labels)
+		return timeseries.Fingerprint(timeSeries[i].Labels) < timeseries.Fingerprint(timeSeries[j].Labels)
 	})
 }
 
@@ -141,7 +142,7 @@ func TestStorages(t *testing.T) {
 							require.Len(t, data.Results[0].TimeSeries, 3)
 							sortTimeSeries(data.Results[0].TimeSeries)
 							for i, actual := range data.Results[0].TimeSeries {
-								base.SortLabels(actual.Labels)
+								timeseries.SortLabels(actual.Labels)
 								expected := storedData.TimeSeries[i]
 								assert.Equal(t, expected, actual, messageTS(expected, actual))
 							}
@@ -281,7 +282,7 @@ func TestStorages(t *testing.T) {
 							require.Len(t, data.Results[0].TimeSeries, 3)
 							sortTimeSeries(data.Results[0].TimeSeries)
 							for i, actual := range data.Results[0].TimeSeries {
-								base.SortLabels(actual.Labels)
+								timeseries.SortLabels(actual.Labels)
 								expected := storedData.TimeSeries[i]
 								assert.Equal(t, expected, actual, messageTS(expected, actual))
 							}
@@ -346,7 +347,7 @@ func TestStorages(t *testing.T) {
 							require.Len(t, data.Results[0].TimeSeries, 3)
 							sortTimeSeries(data.Results[0].TimeSeries)
 							for i, actual := range data.Results[0].TimeSeries {
-								base.SortLabels(actual.Labels)
+								timeseries.SortLabels(actual.Labels)
 								expected := storedData.TimeSeries[i]
 								assert.Equal(t, expected, actual, messageTS(expected, actual))
 							}
@@ -446,7 +447,7 @@ func TestStorages(t *testing.T) {
 				require.Len(t, data.Results[0].TimeSeries, len(storedData.TimeSeries))
 				sortTimeSeries(data.Results[0].TimeSeries)
 				for i, actual := range data.Results[0].TimeSeries {
-					base.SortLabels(actual.Labels)
+					timeseries.SortLabels(actual.Labels)
 					expected := storedData.TimeSeries[i]
 					assert.Equal(t, expected, actual, messageTS(expected, actual))
 				}

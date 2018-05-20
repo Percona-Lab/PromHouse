@@ -35,6 +35,7 @@ import (
 
 	"github.com/Percona-Lab/PromHouse/prompb"
 	"github.com/Percona-Lab/PromHouse/storages/base"
+	"github.com/Percona-Lab/PromHouse/utils/timeseries"
 )
 
 const (
@@ -426,8 +427,8 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) erro
 	fingerprints := make([]uint64, len(data.TimeSeries))
 	timeSeries := make(map[uint64][]*prompb.Label, len(data.TimeSeries))
 	for i, ts := range data.TimeSeries {
-		base.SortLabels(ts.Labels)
-		f := base.Fingerprint(ts.Labels)
+		timeseries.SortLabels(ts.Labels)
+		f := timeseries.Fingerprint(ts.Labels)
 		fingerprints[i] = f
 		timeSeries[f] = ts.Labels
 	}

@@ -26,6 +26,7 @@ import (
 
 	"github.com/Percona-Lab/PromHouse/prompb"
 	"github.com/Percona-Lab/PromHouse/storages/base"
+	"github.com/Percona-Lab/PromHouse/utils/timeseries"
 )
 
 // memory is a functional dummy storage for testing.
@@ -98,8 +99,8 @@ func (m *memory) Write(ctx context.Context, data *prompb.WriteRequest) error {
 	}
 
 	for _, ts := range data.TimeSeries {
-		base.SortLabels(ts.Labels)
-		f := base.Fingerprint(ts.Labels)
+		timeseries.SortLabels(ts.Labels)
+		f := timeseries.Fingerprint(ts.Labels)
 		m.metrics[f] = ts.Labels
 
 		s := m.samples[f]

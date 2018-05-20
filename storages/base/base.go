@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"sort"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -138,11 +137,6 @@ func (ms Matchers) MatchLabels(labels []*prompb.Label) bool {
 	}
 
 	return true
-}
-
-// SortLabels sorts labels by name.
-func SortLabels(labels []*prompb.Label) {
-	sort.Slice(labels, func(i, j int) bool { return labels[i].Name < labels[j].Name })
 }
 
 // check interfaces

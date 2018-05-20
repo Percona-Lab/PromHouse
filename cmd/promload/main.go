@@ -226,6 +226,8 @@ func main() {
 			break
 		}
 
+		logrus.Debugf("Read %d time series.", len(data.ts))
+
 		if data.max > 0 {
 			if time.Since(lastReport) > 10*time.Second {
 				lastReport = time.Now()

@@ -67,7 +67,6 @@ func (client *exporterClient) getMetrics() (io.ReadCloser, http.Header, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	defer resp.Body.Close()
 
 	// check response
 	if resp.StatusCode != 200 {
@@ -98,6 +97,7 @@ func (client *exporterClient) decodeMetrics(rc io.ReadCloser, headers http.Heade
 	if err := rc.Close(); err != nil {
 		return nil, err
 	}
+	client.l.Debugf("Decoded %d metric families.", len(mfs))
 
 	// convert to vector
 	opts := &expfmt.DecodeOptions{

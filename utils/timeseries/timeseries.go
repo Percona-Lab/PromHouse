@@ -22,7 +22,37 @@ import (
 	"github.com/Percona-Lab/PromHouse/prompb"
 )
 
-// SortLabels sorts labels by name.
+const nameLabel string = "__name__"
+
+// SortLabels sorts prompb labels by name.
 func SortLabels(labels []*prompb.Label) {
 	sort.Slice(labels, func(i, j int) bool { return labels[i].Name < labels[j].Name })
+}
+
+// SortTimeSeriesSlow sorts time series by metric name and fingerprint.
+// It is slow, and should be used only in tests.
+func SortTimeSeriesSlow(timeSeries []*prompb.TimeSeries) {
+	sort.Slice(timeSeries, func(i, j int) bool {
+		SortLabels(timeSeries[i].Labels)
+		SortLabels(timeSeries[j].Labels)
+
+		var nameI, nameJ string
+		for _, l := range timeSeries[i].Labels {
+			if l.Name == nameLabel {
+				nameI = l.Value
+				break
+			}
+		}
+		for _, l := range timeSeries[j].Labels {
+			if l.Name == nameLabel {
+				nameJ = l.Value
+				break
+			}
+		}
+		if nameI != nameJ {
+			return nameI < nameJ
+		}
+
+		return Fingerprint(timeSeries[i].Labels) < Fingerprint(timeSeries[j].Labels)
+	})
 }

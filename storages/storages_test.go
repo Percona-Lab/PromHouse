@@ -19,7 +19,6 @@ package storages
 import (
 	"context"
 	"fmt"
-	"sort"
 	"testing"
 	"time"
 
@@ -35,32 +34,6 @@ import (
 	"github.com/Percona-Lab/PromHouse/storages/test"
 	"github.com/Percona-Lab/PromHouse/utils/timeseries"
 )
-
-// sortTimeSeries sorts timeseries by metric name and fingerprint.
-func sortTimeSeries(timeSeries []*prompb.TimeSeries) {
-	sort.Slice(timeSeries, func(i, j int) bool {
-		var nameI, nameJ string
-		for _, l := range timeSeries[i].Labels {
-			if l.Name == model.MetricNameLabel {
-				nameI = l.Value
-				break
-			}
-		}
-		for _, l := range timeSeries[j].Labels {
-			if l.Name == model.MetricNameLabel {
-				nameJ = l.Value
-				break
-			}
-		}
-		if nameI != nameJ {
-			return nameI < nameJ
-		}
-
-		timeseries.SortLabels(timeSeries[i].Labels)
-		timeseries.SortLabels(timeSeries[j].Labels)
-		return timeseries.Fingerprint(timeSeries[i].Labels) < timeseries.Fingerprint(timeSeries[j].Labels)
-	})
-}
 
 func formatTS(ts *prompb.TimeSeries) string {
 	res := test.MakeMetric(ts.Labels).String()
@@ -140,7 +113,7 @@ func TestStorages(t *testing.T) {
 							require.NoError(t, err)
 							require.Len(t, data.Results, 1)
 							require.Len(t, data.Results[0].TimeSeries, 3)
-							sortTimeSeries(data.Results[0].TimeSeries)
+							timeseries.SortTimeSeriesSlow(data.Results[0].TimeSeries)
 							for i, actual := range data.Results[0].TimeSeries {
 								timeseries.SortLabels(actual.Labels)
 								expected := storedData.TimeSeries[i]
@@ -280,7 +253,7 @@ func TestStorages(t *testing.T) {
 							require.NoError(t, err)
 							require.Len(t, data.Results, 1)
 							require.Len(t, data.Results[0].TimeSeries, 3)
-							sortTimeSeries(data.Results[0].TimeSeries)
+							timeseries.SortTimeSeriesSlow(data.Results[0].TimeSeries)
 							for i, actual := range data.Results[0].TimeSeries {
 								timeseries.SortLabels(actual.Labels)
 								expected := storedData.TimeSeries[i]
@@ -345,7 +318,7 @@ func TestStorages(t *testing.T) {
 							require.NoError(t, err)
 							require.Len(t, data.Results, 1)
 							require.Len(t, data.Results[0].TimeSeries, 3)
-							sortTimeSeries(data.Results[0].TimeSeries)
+							timeseries.SortTimeSeriesSlow(data.Results[0].TimeSeries)
 							for i, actual := range data.Results[0].TimeSeries {
 								timeseries.SortLabels(actual.Labels)
 								expected := storedData.TimeSeries[i]
@@ -445,7 +418,7 @@ func TestStorages(t *testing.T) {
 				require.NoError(t, err)
 				require.Len(t, data.Results, 1)
 				require.Len(t, data.Results[0].TimeSeries, len(storedData.TimeSeries))
-				sortTimeSeries(data.Results[0].TimeSeries)
+				timeseries.SortTimeSeriesSlow(data.Results[0].TimeSeries)
 				for i, actual := range data.Results[0].TimeSeries {
 					timeseries.SortLabels(actual.Labels)
 					expected := storedData.TimeSeries[i]

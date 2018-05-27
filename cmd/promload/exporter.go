@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"
@@ -39,13 +40,23 @@ type exporterClient struct {
 	url  string
 	http *http.Client
 	sort bool // set to true for stable results (for example, in tests)
+
+	readParams  *exporterClientReadParams
+	readCurrent time.Time
 }
 
 type exporterClientReadParams struct {
+	start, end time.Time
+	step       time.Duration
+	cache      bool
+}
+
+func (p exporterClientReadParams) String() string {
+	return fmt.Sprintf("{start: %s, end: %s, step: %s, cache: %t}", p.start, p.end, p.step, p.cache)
 }
 
 func newExporterClient(url string, readParams *exporterClientReadParams) *exporterClient {
-	return &exporterClient{
+	client := &exporterClient{
 		l:   logrus.WithField("client", "exporter"),
 		url: url,
 		http: &http.Client{
@@ -54,15 +65,20 @@ func newExporterClient(url string, readParams *exporterClientReadParams) *export
 				IdleConnTimeout:     10 * time.Second,
 			},
 		},
+		readParams:  readParams,
+		readCurrent: readParams.start,
 	}
+
+	return client
 }
 
-func (client *exporterClient) getMetrics() (io.ReadCloser, http.Header, error) {
+func (client *exporterClient) getMetrics(ctx context.Context) (io.ReadCloser, http.Header, error) {
 	// make request
 	req, err := http.NewRequest("GET", client.url, nil)
 	if err != nil {
 		return nil, nil, err
 	}
+	req = req.WithContext(ctx)
 	resp, err := client.http.Do(req)
 	if err != nil {
 		return nil, nil, err
@@ -79,7 +95,7 @@ func (client *exporterClient) getMetrics() (io.ReadCloser, http.Header, error) {
 	return resp.Body, resp.Header, nil
 }
 
-func (client *exporterClient) decodeMetrics(rc io.ReadCloser, headers http.Header, now time.Time) ([]*prompb.TimeSeries, error) {
+func (client *exporterClient) decodeMetrics(rc io.ReadCloser, headers http.Header) ([]*prompb.TimeSeries, error) {
 	// decode metrics
 	d := expfmt.NewDecoder(rc, expfmt.ResponseFormat(headers))
 	mfs := make([]*dto.MetricFamily, 0, 1000)
@@ -97,13 +113,9 @@ func (client *exporterClient) decodeMetrics(rc io.ReadCloser, headers http.Heade
 	if err := rc.Close(); err != nil {
 		return nil, err
 	}
-	client.l.Debugf("Decoded %d metric families.", len(mfs))
 
 	// convert to vector
-	opts := &expfmt.DecodeOptions{
-		Timestamp: model.TimeFromUnixNano(now.UnixNano()),
-	}
-	vector, err := expfmt.ExtractSamples(opts, mfs...)
+	vector, err := expfmt.ExtractSamples(new(expfmt.DecodeOptions), mfs...)
 	if err != nil {
 		return nil, err
 	}
@@ -148,28 +160,84 @@ func (client *exporterClient) decodeMetrics(rc io.ReadCloser, headers http.Heade
 	return res, nil
 }
 
-func (client *exporterClient) readTS() tsReadData {
-	rc, headers, err := client.getMetrics()
-	if err != nil {
-		return tsReadData{err: err}
-	}
-	ts, err := client.decodeMetrics(rc, headers, time.Now())
-	return tsReadData{
-		ts:  ts,
-		err: err,
+func (client *exporterClient) runFreshReader(ctx context.Context, ch chan<- tsReadData) {
+	var data tsReadData
+	var ts []*prompb.TimeSeries
+	for {
+		rc, headers, err := client.getMetrics(ctx)
+		if err == nil {
+			ts, err = client.decodeMetrics(rc, headers)
+			data = tsReadData{ts: ts, err: err}
+		} else {
+			data = tsReadData{err: err}
+		}
+
+		select {
+		case <-ctx.Done():
+			data.err = ctx.Err()
+			ch <- data
+		case ch <- data:
+			if data.err == nil {
+				continue
+			}
+		}
+
+		close(ch)
+		return
 	}
 }
 
 func (client *exporterClient) runReader(ctx context.Context, ch chan<- tsReadData) {
+	freshCh := make(chan tsReadData)
+	go client.runFreshReader(ctx, freshCh)
+	data := <-freshCh
+
 	for {
-		data := client.readTS()
-		if data.err == nil {
-			data.err = ctx.Err()
+		if client.readCurrent.After(client.readParams.end) {
+			ch <- tsReadData{err: io.EOF}
+			close(ch)
+			return
 		}
+
+		start := client.readCurrent
+		end := start.Add(client.readParams.step)
+		if end.After(client.readParams.end) {
+			end = client.readParams.end
+		}
+		client.readCurrent = end
+
+		for _, t := range data.ts {
+			for _, s := range t.Samples {
+				s.TimestampMs = int64(model.TimeFromUnixNano(start.UnixNano()))
+			}
+		}
+
+		var tsCopy []*prompb.TimeSeries
+		if client.readParams.cache {
+			tsCopy = make([]*prompb.TimeSeries, len(data.ts))
+			for i, t := range data.ts {
+				tsCopy[i] = proto.Clone(t).(*prompb.TimeSeries)
+			}
+		}
+
+		data.current = uint(client.readCurrent.Unix() - client.readParams.start.Unix())
+		data.max = uint(client.readParams.end.Unix() - client.readParams.start.Unix())
 		ch <- data
 		if data.err != nil {
 			close(ch)
 			return
+		}
+
+		if client.readParams.cache {
+			select {
+			case data = <-freshCh:
+				client.l.Debug("Got fresh data.")
+			default:
+				data.ts = tsCopy
+				client.l.Debug("Using old data.")
+			}
+		} else {
+			data = <-freshCh
 		}
 	}
 }

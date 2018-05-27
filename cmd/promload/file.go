@@ -95,22 +95,18 @@ func (client *fileClient) readTS() tsReadData {
 	}
 
 	// update progress
-	var rp *readProgress
+	data := tsReadData{
+		ts: []*prompb.TimeSeries{&ts},
+	}
 	if client.fSize != 0 {
 		offset, err := client.f.Seek(0, os.SEEK_CUR)
 		if err == nil {
-			rp = &readProgress{
-				current: uint(offset),
-				max:     uint(client.fSize),
-			}
+			data.current = uint(offset)
+			data.max = uint(client.fSize)
 		}
 	}
 
-	return tsReadData{
-		ts:      []*prompb.TimeSeries{&ts},
-		current: rp.current,
-		max:     rp.max,
-	}
+	return data
 }
 
 func (client *fileClient) runReader(ctx context.Context, ch chan<- tsReadData) {

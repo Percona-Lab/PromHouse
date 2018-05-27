@@ -36,10 +36,6 @@ import (
 	"github.com/Percona-Lab/PromHouse/utils/duration"
 )
 
-type readProgress struct {
-	current, max uint
-}
-
 type tsReadData struct {
 	ts           []*prompb.TimeSeries
 	current, max uint
@@ -95,8 +91,8 @@ func main() {
 		sourceArg      = copyCmd.Arg("source", sourceHelp).Required().String()
 		destinationArg = copyCmd.Arg("destination", destinationHelp).Required().String()
 
-		lastF  = duration.FromFlag(copyCmd.Flag("source.promhouse.last", "PromHouse source: read from that time ago").Default("30d"))
-		stepF  = duration.FromFlag(copyCmd.Flag("source.promhouse.step", "PromHouse source: interval for a single request").Default("1m"))
+		lastF  = duration.FromFlag(copyCmd.Flag("source.last", "Source: read from that time ago").Default("30d"))
+		stepF  = duration.FromFlag(copyCmd.Flag("source.step", "Source: interval for a single request").Default("1m"))
 		cacheF = copyCmd.Flag("source.cache", "Source: cache last data until new one is available").Bool()
 	)
 	kingpin.CommandLine.Help = "Prometheus data import/export and load testing utility."
@@ -146,16 +142,25 @@ func main() {
 		case "promhouse":
 			end := time.Now().Truncate(time.Minute)
 			start := end.Add(-time.Duration(*lastF))
-			logrus.Infof("Reading metrics from %s %s between %s and %s with step %s.", sourceType, sourceAddr, start, end, *stepF)
-			reader = newPromHouseClient(sourceAddr, &promHouseClientReadParams{
+			params := &promHouseClientReadParams{
 				start: start,
 				end:   end,
 				step:  time.Duration(*stepF),
-			})
+			}
+			logrus.Infof("Reading metrics from %s %s with %s.", sourceType, sourceAddr, params)
+			reader = newPromHouseClient(sourceAddr, params)
 
 		case "exporter":
-			logrus.Infof("Reading metrics from %s %s.", sourceType, sourceAddr)
-			reader = newExporterClient(sourceAddr, &exporterClientReadParams{})
+			end := time.Now().Truncate(time.Minute)
+			start := end.Add(-time.Duration(*lastF))
+			params := &exporterClientReadParams{
+				start: start,
+				end:   end,
+				step:  time.Duration(*stepF),
+				cache: *cacheF,
+			}
+			logrus.Infof("Reading metrics from %s %s with %s.", sourceType, sourceAddr, params)
+			reader = newExporterClient(sourceAddr, params)
 
 		case "null":
 			logrus.Fatal("Can't read from /dev/null.")
@@ -199,19 +204,8 @@ func main() {
 	go reader.runReader(ctx, ch)
 
 	var lastReport time.Time
-	var data tsReadData
-	var ok bool
 	for {
-		if *cacheF && len(data.ts) > 0 {
-			// replace data with new data if it is available; do not block
-			select {
-			case data, ok = <-ch:
-			default:
-			}
-		} else {
-			// replace data with new data
-			data, ok = <-ch
-		}
+		data, ok := <-ch
 		if !ok {
 			break
 		}

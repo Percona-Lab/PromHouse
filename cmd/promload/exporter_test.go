@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"io/ioutil"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,9 +40,8 @@ go_info{version="go1.9.2"} 1
 
 func TestDecodeMetrics(t *testing.T) {
 	rc := ioutil.NopCloser(bytes.NewReader(metrics))
-	now := time.Date(2018, 5, 20, 16, 33, 23, 123456789, time.UTC)
 	client := &exporterClient{sort: true}
-	ts, err := client.decodeMetrics(rc, nil, now)
+	ts, err := client.decodeMetrics(rc, nil)
 	require.NoError(t, err)
 	expected := []*prompb.TimeSeries{
 		{
@@ -51,7 +49,7 @@ func TestDecodeMetrics(t *testing.T) {
 				{Name: "__name__", Value: "go_goroutines"},
 			},
 			Samples: []*prompb.Sample{
-				{Value: 38, TimestampMs: 1526834003123},
+				{Value: 38},
 			},
 		},
 		{
@@ -60,7 +58,7 @@ func TestDecodeMetrics(t *testing.T) {
 				{Name: "version", Value: "go1.9.2"},
 			},
 			Samples: []*prompb.Sample{
-				{Value: 1, TimestampMs: 1526834003123},
+				{Value: 1},
 			},
 		},
 	}

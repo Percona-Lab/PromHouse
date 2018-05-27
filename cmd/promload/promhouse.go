@@ -52,6 +52,10 @@ type promHouseClientReadParams struct {
 	step       time.Duration
 }
 
+func (p promHouseClientReadParams) String() string {
+	return fmt.Sprintf("{start: %s, end: %s, step: %s}", p.start, p.end, p.step)
+}
+
 func newPromHouseClient(url string, readParams *promHouseClientReadParams) *promHouseClient {
 	client := &promHouseClient{
 		l:   logrus.WithField("client", "promhouse"),
@@ -155,14 +159,10 @@ func (client *promHouseClient) readTS() tsReadData {
 		return tsReadData{err: err}
 	}
 
-	rp := &readProgress{
-		current: uint(client.readCurrent.Unix() - client.readParams.start.Unix()),
-		max:     uint(client.readParams.end.Unix() - client.readParams.start.Unix()),
-	}
 	return tsReadData{
 		ts:      response.Results[0].TimeSeries,
-		current: rp.current,
-		max:     rp.max,
+		current: uint(client.readCurrent.Unix() - client.readParams.start.Unix()),
+		max:     uint(client.readParams.end.Unix() - client.readParams.start.Unix()),
 	}
 }
 

@@ -29,24 +29,39 @@ import (
 	"github.com/Percona-Lab/PromHouse/utils/timeseries"
 )
 
+const (
+	namespace = "promhouse"
+	subsystem = "memory"
+)
+
 // memory is a functional dummy storage for testing.
 type memory struct {
 	rw      sync.RWMutex
 	metrics map[uint64][]*prompb.Label
 	samples map[uint64][]*prompb.Sample
+	mDummy  prometheus.Counter
 }
 
 func New() base.Storage {
-	return &memory{
+	m := &memory{
 		metrics: make(map[uint64][]*prompb.Label, 8192),
 		samples: make(map[uint64][]*prompb.Sample, 8192),
+		mDummy: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "dummy",
+			Help:      "dummy",
+		}),
 	}
+	return m
 }
 
 func (m *memory) Describe(c chan<- *prometheus.Desc) {
+	m.mDummy.Describe(c)
 }
 
 func (m *memory) Collect(c chan<- prometheus.Metric) {
+	m.mDummy.Collect(c)
 }
 
 func (m *memory) Read(ctx context.Context, queries []base.Query) (*prompb.ReadResponse, error) {

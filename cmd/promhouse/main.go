@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"context"
 	_ "expvar" // for /debug/expvar
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
@@ -41,7 +42,10 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/Percona-Lab/PromHouse/handlers"
+	"github.com/Percona-Lab/PromHouse/storages/base"
+	"github.com/Percona-Lab/PromHouse/storages/blackhole"
 	"github.com/Percona-Lab/PromHouse/storages/clickhouse"
+	"github.com/Percona-Lab/PromHouse/storages/memory"
 )
 
 const (
@@ -49,10 +53,21 @@ const (
 )
 
 // runPromServer runs Prometheus API server until context is canceled, then gracefully stops it.
-func runPromServer(ctx context.Context, addr string, params *clickhouse.Params) {
+func runPromServer(ctx context.Context, addr string, storageType string, params *clickhouse.Params) {
 	l := logrus.WithField("component", "api")
 
-	storage, err := clickhouse.New(params)
+	var storage base.Storage
+	var err error
+	switch storageType {
+	case "blackhole":
+		storage = blackhole.New()
+	case "clickhouse":
+		storage, err = clickhouse.New(params)
+	case "memory":
+		storage = memory.New()
+	default:
+		err = fmt.Errorf("unhandled storage type %q", storageType)
+	}
 	if err != nil {
 		l.Panic(err)
 	}
@@ -148,6 +163,7 @@ func main() {
 		debugAddrF    = kingpin.Flag("listen-debug-addr", "Debug server listen address").Default("127.0.0.1:7782").String()
 		dropF         = kingpin.Flag("db.drop-schema", "Drop existing database schema").Bool()
 		maxOpenConnsF = kingpin.Flag("db.max-open-conns", "Maximum number of open connections to the database").Default("75").Int()
+		storageTypeF  = kingpin.Flag("storage-type", "Storage type").Default("clickhouse").String()
 		logLevelF     = kingpin.Flag("log.level", "Log level").Default("warn").String()
 	)
 	kingpin.CommandLine.HelpFlag.Short('h')
@@ -186,7 +202,7 @@ func main() {
 			MaxOpenConns:         *maxOpenConnsF,
 			MaxTimeSeriesInQuery: 50,
 		}
-		runPromServer(ctx, *promAddrF, params)
+		runPromServer(ctx, *promAddrF, *storageTypeF, params)
 	}()
 	go func() {
 		defer wg.Done()

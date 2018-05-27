@@ -26,24 +26,47 @@ import (
 	"github.com/Percona-Lab/PromHouse/storages/base"
 )
 
+const (
+	namespace = "promhouse"
+	subsystem = "blackhole"
+)
+
 // blackhole is a non-functional dummy storage for testing.
-type blackhole struct{}
+type blackhole struct {
+	mDummy prometheus.Counter
+}
 
 func New() base.Storage {
-	return new(blackhole)
+	b := &blackhole{
+		mDummy: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "dummy",
+			Help:      "dummy",
+		}),
+	}
+	return b
 }
 
-func (m *blackhole) Describe(c chan<- *prometheus.Desc) {
+func (b *blackhole) Describe(c chan<- *prometheus.Desc) {
+	b.mDummy.Describe(c)
 }
 
-func (m *blackhole) Collect(c chan<- prometheus.Metric) {
+func (b *blackhole) Collect(c chan<- prometheus.Metric) {
+	b.mDummy.Collect(c)
 }
 
-func (m *blackhole) Read(ctx context.Context, queries []base.Query) (*prompb.ReadResponse, error) {
-	return nil, nil
+func (b *blackhole) Read(ctx context.Context, queries []base.Query) (*prompb.ReadResponse, error) {
+	res := &prompb.ReadResponse{
+		Results: make([]*prompb.QueryResult, len(queries)),
+	}
+	for i := range res.Results {
+		res.Results[i] = &prompb.QueryResult{}
+	}
+	return res, nil
 }
 
-func (m *blackhole) Write(ctx context.Context, data *prompb.WriteRequest) error {
+func (b *blackhole) Write(ctx context.Context, data *prompb.WriteRequest) error {
 	return nil
 }
 

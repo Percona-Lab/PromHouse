@@ -394,12 +394,12 @@ func TestStorages(t *testing.T) {
 				s := []*prompb.Sample{{Value: 1, TimestampMs: int64(start)}}
 				storedData := &prompb.WriteRequest{
 					TimeSeries: []*prompb.TimeSeries{
-						{Labels: []*prompb.Label{{"__name__", "funny_1"}, {"label", ""}}, Samples: s},
-						{Labels: []*prompb.Label{{"__name__", "funny_2"}, {"label", "'`\"\\"}}, Samples: s},
-						{Labels: []*prompb.Label{{"__name__", "funny_3"}, {"label", "''``\"\"\\\\"}}, Samples: s},
-						{Labels: []*prompb.Label{{"__name__", "funny_4"}, {"label", "'''```\"\"\"\\\\\\"}}, Samples: s},
-						{Labels: []*prompb.Label{{"__name__", "funny_5"}, {"label", `\ \\ \\\\ \\\\`}}, Samples: s},
-						{Labels: []*prompb.Label{{"__name__", "funny_6"}, {"label", "🆗"}}, Samples: s},
+						{Labels: []*prompb.Label{{Name: "__name__", Value: "funny_1"}, {Name: "label", Value: ""}}, Samples: s},
+						{Labels: []*prompb.Label{{Name: "__name__", Value: "funny_2"}, {Name: "label", Value: "'`\"\\"}}, Samples: s},
+						{Labels: []*prompb.Label{{Name: "__name__", Value: "funny_3"}, {Name: "label", Value: "''``\"\"\\\\"}}, Samples: s},
+						{Labels: []*prompb.Label{{Name: "__name__", Value: "funny_4"}, {Name: "label", Value: "'''```\"\"\"\\\\\\"}}, Samples: s},
+						{Labels: []*prompb.Label{{Name: "__name__", Value: "funny_5"}, {Name: "label", Value: `\ \\ \\\\ \\\\`}}, Samples: s},
+						{Labels: []*prompb.Label{{Name: "__name__", Value: "funny_6"}, {Name: "label", Value: "🆗"}}, Samples: s},
 					},
 				}
 				require.NoError(t, storage.Write(context.Background(), storedData))

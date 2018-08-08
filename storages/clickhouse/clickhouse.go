@@ -198,7 +198,7 @@ func (ch *clickHouse) runTimeSeriesReloader(ctx context.Context) {
 
 		select {
 		case <-ctx.Done():
-			ch.l.Warn(ctx.Err)
+			ch.l.Warn(ctx.Err())
 			return
 		case <-ticker.C:
 		}

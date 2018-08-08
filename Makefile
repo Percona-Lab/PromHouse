@@ -15,7 +15,7 @@ protos:
 	go install -v ./vendor/github.com/gogo/protobuf/protoc-gen-gogo
 
 	rm -f prompb/*.pb.go
-	protoc -Iprompb prompb/*.proto --gofast_out=prompb
+	protoc -Iprompb prompb/*.proto --gogofaster_out=prompb
 
 install:
 	go install -v ./...

@@ -101,7 +101,7 @@ func (client *promHouseClient) readTS() tsReadData {
 			EndTimestampMs:   int64(model.TimeFromUnixNano(end.UnixNano())),
 		}},
 	}
-	client.l.Debugf("Request: %s", request)
+	client.l.Debugf("Request: %s", request.String())
 
 	// marshal request reusing bMarshaled
 	var err error
@@ -184,7 +184,7 @@ func (client *promHouseClient) writeTS(ts []*prompb.TimeSeries) error {
 	request := prompb.WriteRequest{
 		TimeSeries: ts,
 	}
-	client.l.Debugf("Request: %s", request)
+	client.l.Debugf("Request: %s", request.String())
 
 	// marshal request reusing bMarshaled
 	var err error

@@ -19,7 +19,7 @@ cd ..
 
 rm -fr prom2
 mkdir prom2
-cd prom && git checkout v2.2.1
+cd prom && git checkout v2.3.2
 cp -v prompb/*.proto ../prom2
 cd ..
 

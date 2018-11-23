@@ -11,6 +11,7 @@ option (gogoproto.unmarshaler_all) = true;
 option (gogoproto.goproto_getters_all) = false;
 
 // TODO - with benchmarks!
+// https://github.com/Percona-Lab/PromHouse/issues/22
 // - [(gogoproto.nullable) = false] for TimeSeries.labels and TimeSeries.samples
 
 message Label {

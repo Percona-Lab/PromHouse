@@ -2,8 +2,9 @@ all: test
 
 init:
 	go get -u github.com/AlekSi/gocoverutil
-	go get -u gopkg.in/alecthomas/gometalinter.v2
+	go get -u golang.org/x/perf/cmd/benchstat
 	go get -u github.com/dvyukov/go-fuzz/...
+	go get -u gopkg.in/alecthomas/gometalinter.v2
 	gometalinter.v2 --install
 
 protos:
@@ -26,7 +27,7 @@ test-race: install-race
 	go test -v -tags gofuzzgen -race ./...
 
 bench: install
-	go test -bench=. -benchtime=10s -benchmem -v ./...
+	go test -run=NONE -bench=. -benchtime=3s -count=5 -benchmem ./... | tee new.txt
 
 run: install
 	go run ./cmd/promhouse/*.go --log.level=info
@@ -44,17 +45,17 @@ gofuzz: test
 	go-fuzz-build -func=FuzzJSON -o=json-fuzz.zip github.com/Percona-Lab/PromHouse/storages/clickhouse
 	go-fuzz -bin=json-fuzz.zip -workdir=go-fuzz/json
 
-env-run:
-	docker-compose -f misc/docker-compose.yml -p promhouse up
+up:
+	docker-compose -f misc/docker-compose.yml -p promhouse up --force-recreate --abort-on-container-exit --renew-anon-volumes --remove-orphans
 
-env-stop:
-	docker-compose -f misc/docker-compose.yml -p promhouse stop
+up-mac:
+	docker-compose -f misc/docker-compose-mac.yml -p promhouse up --force-recreate --abort-on-container-exit --renew-anon-volumes --remove-orphans
 
-env-run-mac:
-	docker-compose -f misc/docker-compose-mac.yml -p promhouse up
+down:
+	docker-compose -f misc/docker-compose.yml -p promhouse down --volumes --remove-orphans
 
-env-stop-mac:
-	docker-compose -f misc/docker-compose-mac.yml -p promhouse stop
+down-mac:
+	docker-compose -f misc/docker-compose-mac.yml -p promhouse down --volumes --remove-orphans
 
 clickhouse-client:
 	docker exec -ti -u root promhouse_clickhouse_1 /usr/bin/clickhouse --client --database=prometheus

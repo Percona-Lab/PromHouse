@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql/driver"
+	"unicode"
 
 	"github.com/kshvakov/clickhouse/lib/data"
 )
@@ -75,17 +76,19 @@ func (stmt *stmt) QueryContext(ctx context.Context, args []driver.NamedValue) (d
 }
 
 func (stmt *stmt) queryContext(ctx context.Context, args []driver.NamedValue) (driver.Rows, error) {
-	err := stmt.ch.sendQuery(stmt.bind(args))
-	if err != nil {
+	finish := stmt.ch.watchCancel(ctx)
+	if err := stmt.ch.sendQuery(stmt.bind(args)); err != nil {
+		finish()
 		return nil, err
 	}
 	meta, err := stmt.ch.readMeta()
 	if err != nil {
+		finish()
 		return nil, err
 	}
 	rows := rows{
 		ch:           stmt.ch,
-		finish:       stmt.ch.watchCancel(ctx),
+		finish:       finish,
 		stream:       make(chan *data.Block, 50),
 		columns:      meta.ColumnNames(),
 		blockColumns: meta.Columns,
@@ -104,6 +107,7 @@ func (stmt *stmt) bind(args []driver.NamedValue) string {
 		buf     bytes.Buffer
 		index   int
 		keyword bool
+		limit   = newMatcher("limit")
 	)
 	switch {
 	case stmt.NumInput() != 0:
@@ -134,10 +138,19 @@ func (stmt *stmt) bind(args []driver.NamedValue) string {
 						char == '>',
 						char == '(',
 						char == ',',
-						char == '%':
+						char == '%',
+						char == '+',
+						char == '-',
+						char == '*',
+						char == '/',
+						char == '[':
 						keyword = true
 					default:
-						keyword = keyword && (char == ' ' || char == '\t' || char == '\n')
+						if limit.matchRune(char) {
+							keyword = true
+						} else {
+							keyword = keyword && unicode.IsSpace(char)
+						}
 					}
 					buf.WriteRune(char)
 				}

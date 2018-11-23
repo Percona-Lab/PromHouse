@@ -8,14 +8,10 @@ init:
 
 protos:
 	go install -v ./vendor/github.com/golang/protobuf/protoc-gen-go
-	go install -v ./vendor/github.com/gogo/protobuf/protoc-gen-gofast
-	go install -v ./vendor/github.com/gogo/protobuf/protoc-gen-gogofast
-	go install -v ./vendor/github.com/gogo/protobuf/protoc-gen-gogofaster
-	go install -v ./vendor/github.com/gogo/protobuf/protoc-gen-gogoslick
 	go install -v ./vendor/github.com/gogo/protobuf/protoc-gen-gogo
 
 	rm -f prompb/*.pb.go
-	protoc -Iprompb prompb/*.proto --gogofaster_out=prompb
+	protoc -Ivendor/github.com/gogo/protobuf -Iprompb prompb/*.proto --gogo_out=prompb
 
 install:
 	go install -v ./...

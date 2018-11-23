@@ -1,14 +1,12 @@
 # tools
 required = [
   "github.com/golang/protobuf/protoc-gen-go",
-  "github.com/gogo/protobuf/protoc-gen-gofast",
-  "github.com/gogo/protobuf/protoc-gen-gogofast",
-  "github.com/gogo/protobuf/protoc-gen-gogofaster",
-  "github.com/gogo/protobuf/protoc-gen-gogoslick",
   "github.com/gogo/protobuf/protoc-gen-gogo",
 ]
 
 [prune]
   go-tests = true
-  non-go = true
   unused-packages = true
+
+  # to keep gogo.proto
+  # non-go = true

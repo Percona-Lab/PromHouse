@@ -13,15 +13,15 @@ sudo add-apt-repository -u "deb [arch=amd64] https://download.docker.com/linux/u
 sudo apt install -y docker-ce
 sudo docker --version
 
-sudo curl -L https://github.com/docker/compose/releases/download/1.16.1/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose
+sudo curl -L https://github.com/docker/compose/releases/download/1.23.1/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose
 sudo chmod +x /usr/local/bin/docker-compose
 sudo docker-compose --version
 
-curl -O https://storage.googleapis.com/golang/go1.9.linux-amd64.tar.gz
-tar xzf go1.9.linux-amd64.tar.gz
+curl -O https://storage.googleapis.com/golang/go1.11.2.linux-amd64.tar.gz
+tar xzf go1.11.2.linux-amd64.tar.gz
 sudo rm -fr /usr/local/go
 sudo mv go /usr/local/
-rm go1.9.linux-amd64.tar.gz
+rm go1.11.2.linux-amd64.tar.gz
 sudo ln -fvs /usr/local/go/bin/* /usr/local/bin
 
 go get -u -v github.com/Percona-Lab/PromHouse/cmd/...

@@ -2,25 +2,19 @@
 
 set -ex
 
-rm -fr prom
-git clone https://github.com/prometheus/prometheus.git prom
+rm -fr prometheus
+git clone https://github.com/prometheus/prometheus.git
 
-rm -fr prom-master
-mkdir prom-master
-cd prom && git checkout master
-cp -v prompb/*.proto ../prom-master
+rm -fr master
+mkdir master
+cd prometheus && git checkout master
+cp -v prompb/*.proto ../master
 cd ..
 
-rm -fr prom1
-mkdir prom1
-cd prom && git checkout v1.8.2
-cp -v storage/remote/*.proto ../prom1
+rm -fr v2.5.0
+mkdir v2.5.0
+cd prometheus && git checkout v2.5.0
+cp -v prompb/*.proto ../v2.5.0
 cd ..
 
-rm -fr prom2
-mkdir prom2
-cd prom && git checkout v2.5.0
-cp -v prompb/*.proto ../prom2
-cd ..
-
-rm -fr prom
+rm -fr prometheus

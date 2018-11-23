@@ -8,7 +8,7 @@ services:
       - 127.0.0.1:9090:9090
     network_mode: host
     volumes:
-      - ./prometheus/${PROM_CONFIG:-prom2}.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/linux.yml:/etc/prometheus/prometheus.yml
     command: ["--config.file=/etc/prometheus/prometheus.yml",
               "--storage.tsdb.path=/prometheus",
               "--storage.tsdb.retention=5m",

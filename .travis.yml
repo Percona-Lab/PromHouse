@@ -7,9 +7,8 @@ go:
   - master
 
 env:
-  - PROM_IMAGE=prom/prometheus:v1.8.2 PROM_CONFIG=prom1
-  - PROM_IMAGE=prom/prometheus:v2.5.0 PROM_CONFIG=prom2
-  - PROM_IMAGE=prom/prometheus:master PROM_CONFIG=prom2
+  - PROM_IMAGE=prom/prometheus:v2.5.0
+  - PROM_IMAGE=prom/prometheus:master
 
 services:
   - docker
@@ -17,7 +16,7 @@ services:
 before_script:
   - docker --version
   - docker-compose --version
-  - docker-compose -f misc/docker-compose.yml -p promhouse up -d
+  - docker-compose -f misc/docker-compose-linux.yml -p promhouse up -d
 
 script:
   - make init
@@ -25,4 +24,4 @@ script:
   - make cover
 
 after_success:
-  - bash <(curl -s https://codecov.io/bash) -f cover.out -X fix -e PROM_IMAGE,PROM_CONFIG
+  - bash <(curl -s https://codecov.io/bash) -f cover.out -X fix -e PROM_IMAGE

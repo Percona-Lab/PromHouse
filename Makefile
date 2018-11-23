@@ -46,13 +46,13 @@ gofuzz: test
 	go-fuzz -bin=json-fuzz.zip -workdir=go-fuzz/json
 
 up:
-	docker-compose -f misc/docker-compose.yml -p promhouse up --force-recreate --abort-on-container-exit --renew-anon-volumes --remove-orphans
+	docker-compose -f misc/docker-compose-linux.yml -p promhouse up --force-recreate --abort-on-container-exit --renew-anon-volumes --remove-orphans
 
 up-mac:
 	docker-compose -f misc/docker-compose-mac.yml -p promhouse up --force-recreate --abort-on-container-exit --renew-anon-volumes --remove-orphans
 
 down:
-	docker-compose -f misc/docker-compose.yml -p promhouse down --volumes --remove-orphans
+	docker-compose -f misc/docker-compose-linux.yml -p promhouse down --volumes --remove-orphans
 
 down-mac:
 	docker-compose -f misc/docker-compose-mac.yml -p promhouse down --volumes --remove-orphans

@@ -12,9 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// We need Go 1.9+ for proper uint64 handling: https://github.com/kshvakov/clickhouse/issues/69
-// +build go1.9
-
 package main
 
 import (

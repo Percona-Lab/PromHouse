@@ -49,7 +49,7 @@ func (x LabelMatcher_Type) String() string {
 	return proto.EnumName(LabelMatcher_Type_name, int32(x))
 }
 func (LabelMatcher_Type) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_prompb_9af734972e7ff936, []int{3, 0}
+	return fileDescriptor_prompb_5dc190d0294cc32d, []int{3, 0}
 }
 
 type Label struct {
@@ -64,7 +64,7 @@ func (m *Label) Reset()         { *m = Label{} }
 func (m *Label) String() string { return proto.CompactTextString(m) }
 func (*Label) ProtoMessage()    {}
 func (*Label) Descriptor() ([]byte, []int) {
-	return fileDescriptor_prompb_9af734972e7ff936, []int{0}
+	return fileDescriptor_prompb_5dc190d0294cc32d, []int{0}
 }
 func (m *Label) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -105,7 +105,7 @@ func (m *Sample) Reset()         { *m = Sample{} }
 func (m *Sample) String() string { return proto.CompactTextString(m) }
 func (*Sample) ProtoMessage()    {}
 func (*Sample) Descriptor() ([]byte, []int) {
-	return fileDescriptor_prompb_9af734972e7ff936, []int{1}
+	return fileDescriptor_prompb_5dc190d0294cc32d, []int{1}
 }
 func (m *Sample) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -146,7 +146,7 @@ func (m *TimeSeries) Reset()         { *m = TimeSeries{} }
 func (m *TimeSeries) String() string { return proto.CompactTextString(m) }
 func (*TimeSeries) ProtoMessage()    {}
 func (*TimeSeries) Descriptor() ([]byte, []int) {
-	return fileDescriptor_prompb_9af734972e7ff936, []int{2}
+	return fileDescriptor_prompb_5dc190d0294cc32d, []int{2}
 }
 func (m *TimeSeries) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -188,7 +188,7 @@ func (m *LabelMatcher) Reset()         { *m = LabelMatcher{} }
 func (m *LabelMatcher) String() string { return proto.CompactTextString(m) }
 func (*LabelMatcher) ProtoMessage()    {}
 func (*LabelMatcher) Descriptor() ([]byte, []int) {
-	return fileDescriptor_prompb_9af734972e7ff936, []int{3}
+	return fileDescriptor_prompb_5dc190d0294cc32d, []int{3}
 }
 func (m *LabelMatcher) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -231,7 +231,7 @@ func (m *ReadHints) Reset()         { *m = ReadHints{} }
 func (m *ReadHints) String() string { return proto.CompactTextString(m) }
 func (*ReadHints) ProtoMessage()    {}
 func (*ReadHints) Descriptor() ([]byte, []int) {
-	return fileDescriptor_prompb_9af734972e7ff936, []int{4}
+	return fileDescriptor_prompb_5dc190d0294cc32d, []int{4}
 }
 func (m *ReadHints) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -274,7 +274,7 @@ func (m *Query) Reset()         { *m = Query{} }
 func (m *Query) String() string { return proto.CompactTextString(m) }
 func (*Query) ProtoMessage()    {}
 func (*Query) Descriptor() ([]byte, []int) {
-	return fileDescriptor_prompb_9af734972e7ff936, []int{5}
+	return fileDescriptor_prompb_5dc190d0294cc32d, []int{5}
 }
 func (m *Query) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -315,7 +315,7 @@ func (m *QueryResult) Reset()         { *m = QueryResult{} }
 func (m *QueryResult) String() string { return proto.CompactTextString(m) }
 func (*QueryResult) ProtoMessage()    {}
 func (*QueryResult) Descriptor() ([]byte, []int) {
-	return fileDescriptor_prompb_9af734972e7ff936, []int{6}
+	return fileDescriptor_prompb_5dc190d0294cc32d, []int{6}
 }
 func (m *QueryResult) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -355,7 +355,7 @@ func (m *ReadRequest) Reset()         { *m = ReadRequest{} }
 func (m *ReadRequest) String() string { return proto.CompactTextString(m) }
 func (*ReadRequest) ProtoMessage()    {}
 func (*ReadRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_prompb_9af734972e7ff936, []int{7}
+	return fileDescriptor_prompb_5dc190d0294cc32d, []int{7}
 }
 func (m *ReadRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -396,7 +396,7 @@ func (m *ReadResponse) Reset()         { *m = ReadResponse{} }
 func (m *ReadResponse) String() string { return proto.CompactTextString(m) }
 func (*ReadResponse) ProtoMessage()    {}
 func (*ReadResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_prompb_9af734972e7ff936, []int{8}
+	return fileDescriptor_prompb_5dc190d0294cc32d, []int{8}
 }
 func (m *ReadResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -436,7 +436,7 @@ func (m *WriteRequest) Reset()         { *m = WriteRequest{} }
 func (m *WriteRequest) String() string { return proto.CompactTextString(m) }
 func (*WriteRequest) ProtoMessage()    {}
 func (*WriteRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_prompb_9af734972e7ff936, []int{9}
+	return fileDescriptor_prompb_5dc190d0294cc32d, []int{9}
 }
 func (m *WriteRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2209,9 +2209,9 @@ var (
 	ErrIntOverflowPrompb   = fmt.Errorf("proto: integer overflow")
 )
 
-func init() { proto.RegisterFile("prompb.proto", fileDescriptor_prompb_9af734972e7ff936) }
+func init() { proto.RegisterFile("prompb.proto", fileDescriptor_prompb_5dc190d0294cc32d) }
 
-var fileDescriptor_prompb_9af734972e7ff936 = []byte{
+var fileDescriptor_prompb_5dc190d0294cc32d = []byte{
 	// 518 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x53, 0x4d, 0x6e, 0x13, 0x4d,
 	0x10, 0x4d, 0x7b, 0xec, 0x99, 0xa4, 0xec, 0xcf, 0x9a, 0xaf, 0x30, 0xc2, 0x61, 0x61, 0x85, 0x96,

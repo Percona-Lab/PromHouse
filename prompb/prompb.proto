@@ -1,4 +1,4 @@
-// Common fully-compatible messages for both Prometheus 1 and 2.
+// Messages should be fully-compatible with Promtheus 2.x.
 
 syntax = "proto3";
 package prompb;

@@ -3,13 +3,12 @@ sudo: required
 language: go
 
 go:
-  - 1.9.x
-  - 1.10.x
+  - 1.11.x
   - master
 
 env:
   - PROM_IMAGE=prom/prometheus:v1.8.2 PROM_CONFIG=prom1
-  - PROM_IMAGE=prom/prometheus:v2.3.2 PROM_CONFIG=prom2
+  - PROM_IMAGE=prom/prometheus:v2.5.0 PROM_CONFIG=prom2
   - PROM_IMAGE=prom/prometheus:master PROM_CONFIG=prom2
 
 services:

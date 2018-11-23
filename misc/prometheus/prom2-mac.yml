@@ -7,11 +7,11 @@ global:
 scrape_configs:
   - job_name: prometheus
     static_configs:
-      - targets: ['promhouse_prometheus_1:9090']
+      - targets: ['promhouse_prometheus:9090']
 
   - job_name: clickhouse
     static_configs:
-      - targets: ['promhouse_clickhouse_exporter_1:9116']
+      - targets: ['promhouse_clickhouse_exporter:9116']
 
   - job_name: promhouse
     metrics_path: /debug/metrics
@@ -20,7 +20,7 @@ scrape_configs:
 
   - job_name: node-exporter
     static_configs:
-      - targets: ['promhouse_node_exporter_1:9100']
+      - targets: ['promhouse_node_exporter:9100']
 
   - job_name: fake-exporter
     scrape_interval: 5s

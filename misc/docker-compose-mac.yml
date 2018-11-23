@@ -2,7 +2,8 @@
 version: '3'
 services:
   prometheus:
-    image: ${PROM_IMAGE:-prom/prometheus:v2.3.2}
+    container_name: prometheus
+    image: ${PROM_IMAGE:-prom/prometheus:v2.5.0}
     ports:
       - 127.0.0.1:9090:9090
     volumes:
@@ -14,11 +15,13 @@ services:
               "--web.console.templates=/usr/share/prometheus/consoles"]
 
   node_exporter:
+    container_name: node_exporter
     image: prom/node-exporter
     ports:
       - 127.0.0.1:9100:9100
 
   clickhouse:
+    container_name: clickhouse
     image: yandex/clickhouse-server
     ports:
       - 127.0.0.1:8123:8123
@@ -29,12 +32,14 @@ services:
       - ./clickhouse/users.xml:/etc/clickhouse-server/users.xml
 
   clickhouse_exporter:
+    container_name: clickhouse_exporter
     image: f1yegor/clickhouse-exporter
     ports:
       - 127.0.0.1:9116:9116
-    command: -scrape_uri=http://promhouse_clickhouse_1:8123/
+    command: -scrape_uri=http://promhouse_clickhouse:8123/
 
   grafana:
+    container_name: grafana
     image: grafana/grafana
     ports:
       - 127.0.0.1:3000:3000

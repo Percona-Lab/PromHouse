@@ -3,6 +3,16 @@
 syntax = "proto3";
 package prompb;
 
+import "gogoproto/gogo.proto";
+
+option (gogoproto.sizer_all) = true;
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+option (gogoproto.goproto_getters_all) = false;
+
+// TODO - with benchmarks!
+// - [(gogoproto.nullable) = false] for TimeSeries.labels and TimeSeries.samples
+
 message Label {
   string name  = 1;
   string value = 2;
@@ -32,15 +42,17 @@ message LabelMatcher {
 }
 
 message ReadHints {
-  int64 step_ms = 1; // Query step size in milliseconds.
-  string func = 2;   // String representation of surrounding function or aggregation.
+  int64 step_ms  = 1; // Query step size in milliseconds.
+  string func    = 2; // String representation of surrounding function or aggregation.
+  int64 start_ms = 3; // Start time in milliseconds.
+  int64 end_ms   = 4; // End time in milliseconds.
 }
 
 message Query {
-  int64 start_timestamp_ms = 1;
-  int64 end_timestamp_ms = 2;
+  int64 start_timestamp_ms       = 1;
+  int64 end_timestamp_ms         = 2;
   repeated LabelMatcher matchers = 3;
-  ReadHints hints = 4;
+  ReadHints hints                = 4;
 }
 
 message QueryResult {

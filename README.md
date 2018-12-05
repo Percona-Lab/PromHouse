@@ -3,6 +3,7 @@
 [![Build Status](https://travis-ci.org/Percona-Lab/PromHouse.svg?branch=master)](https://travis-ci.org/Percona-Lab/PromHouse)
 [![codecov](https://codecov.io/gh/Percona-Lab/PromHouse/branch/master/graph/badge.svg)](https://codecov.io/gh/Percona-Lab/PromHouse)
 [![Go Report Card](https://goreportcard.com/badge/github.com/Percona-Lab/PromHouse)](https://goreportcard.com/report/github.com/Percona-Lab/PromHouse)
+[![CLA assistant](https://cla-assistant.percona.com/readme/badge/Percona-Lab/PromHouse)](https://cla-assistant.percona.com/Percona-Lab/PromHouse)
 
 PromHouse is a long-term remote storage with built-in clustering and downsampling for 2.x on top of
 [ClickHouse](https://clickhouse.yandex). Or, rather, it will be someday.

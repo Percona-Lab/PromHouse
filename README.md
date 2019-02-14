@@ -9,12 +9,11 @@ PromHouse is a long-term remote storage with built-in clustering and downsamplin
 [ClickHouse](https://clickhouse.yandex). Or, rather, it will be someday.
 Feel free to ~~like, share, retweet,~~ star and watch it, but **do not use it in production** yet.
 
-
 ## Database Schema
 
 ```sql
 CREATE TABLE time_series (
-    date Date,
+    date Date CODEC(Delta),
     fingerprint UInt64,
     labels String
 )
@@ -24,8 +23,8 @@ ENGINE = ReplacingMergeTree
 
 CREATE TABLE samples (
     fingerprint UInt64,
-    timestamp_ms Int64,
-    value Float64
+    timestamp_ms Int64 CODEC(Delta),
+    value Float64 CODEC(Delta)
 )
 ENGINE = MergeTree
     PARTITION BY toDate(timestamp_ms / 1000)
@@ -35,6 +34,7 @@ ENGINE = MergeTree
 ```sql
 SELECT * FROM time_series WHERE fingerprint = 7975981685167825999;
 ```
+
 ```
 ┌───────date─┬─────────fingerprint─┬─labels─────────────────────────────────────────────────────────────────────────────────┐
 │ 2017-12-31 │ 7975981685167825999 │ {"__name__":"up","instance":"promhouse_clickhouse_exporter_1:9116","job":"clickhouse"} │
@@ -44,6 +44,7 @@ SELECT * FROM time_series WHERE fingerprint = 7975981685167825999;
 ```sql
 SELECT * FROM samples WHERE fingerprint = 7975981685167825999 LIMIT 3;
 ```
+
 ```
 ┌─────────fingerprint─┬──timestamp_ms─┬─value─┐
 │ 7975981685167825999 │ 1514730532900 │     0 │
@@ -63,16 +64,17 @@ PromHouse currently stores 24 bytes per sample: 8 bytes for UInt64 fingerprint, 
 for Float64 value. The actual compression rate is about 4.5:1, that's about 24/4.5 = 5.3 bytes per sample. Prometheus
 local storage compresses 16 bytes (timestamp and value) per sample to [1.37](https://coreos.com/blog/prometheus-2.0-storage-layer-optimization), that's 12:1.
 
+Since ClickHouse v19.3.3 it is possible to use delta and double delta for compression, which should make storage almost as efficient as TSDB's one.
 
-### Important ClickHouse issues
+## Outstanding features in the roadmap
 
-* [#167 update records](https://github.com/yandex/ClickHouse/issues/167) should significantly simplify downsampling implementation.
-* [#838 Feature request: add ability to apply delta or delta-of-delta encoding to numeric columns before compression](https://github.com/yandex/ClickHouse/issues/838) should improve compression rate.
-
+- Downsampling (become possible since ClickHouse v18.12.14)
+- Query Hints (become possible since [prometheus PR 4122](https://github.com/prometheus/prometheus/pull/4122), help wanted [issue #24](https://github.com/Percona-Lab/PromHouse/issues/24))
 
 ## SQL queries
 
 The largest jobs and instances by time series count:
+
 ```sql
 SELECT
     job,
@@ -86,6 +88,7 @@ ORDER BY value DESC LIMIT 10
 ```
 
 The largest metrics by time series count (cardinality):
+
 ```sql
 SELECT
     name,
@@ -97,6 +100,7 @@ ORDER BY value DESC LIMIT 10
 ```
 
 The largest time series by samples count:
+
 ```sql
 SELECT
     labels,

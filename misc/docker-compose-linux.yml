@@ -51,3 +51,10 @@ services:
     volumes:
       - ./grafana/grafana.ini:/etc/grafana/grafana.ini
       - ./grafana/provisioning:/etc/grafana/provisioning
+
+  tabix:
+    container_name: tabix
+    image: spoonest/clickhouse-tabix-web-client
+    ports:
+      - 127.0.0.1:8080:80
+    network_mode: host

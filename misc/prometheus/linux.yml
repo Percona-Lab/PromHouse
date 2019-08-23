@@ -44,6 +44,5 @@ remote_write:
       max_shards: 50
       max_samples_per_send: 100000
       batch_send_deadline: 5s
-      max_retries: 10
       min_backoff: 30ms
       max_backoff: 100ms

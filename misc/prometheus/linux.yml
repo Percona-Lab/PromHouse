@@ -38,7 +38,7 @@ remote_read:
   - url: http://127.0.0.1:7781/read
 
 remote_write:
-  - url: http://docker.for.mac.host.internal:7781/write
+  - url: http://127.0.0.1:7781/write
     queue_config:
       capacity: 1000000
       max_shards: 50

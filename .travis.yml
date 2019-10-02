@@ -1,17 +1,34 @@
-dist: trusty
-sudo: required
+dist: bionic
 language: go
-
-go:
-  - 1.11.x
-  - master
-
-env:
-  - PROM_IMAGE=prom/prometheus:v2.5.0
-  - PROM_IMAGE=prom/prometheus:master
 
 services:
   - docker
+
+go:
+  - 1.13.x
+  # TODO - master
+
+matrix:
+  fast_finish: true
+  allow_failures:
+    - go: master
+
+cache:
+  directories:
+    - /home/travis/.cache/go-build
+    # - /home/travis/gopath/pkg
+
+before_cache:
+  - go clean -testcache
+  # - go clean -cache
+
+env:
+  global:
+    - CODECOV_ENV=PROM_IMAGE,CLICKHOUSE_IMAGE
+
+  matrix:
+    - PROM_IMAGE=prom/prometheus:v2.5.0 CLICKHOUSE_IMAGE=yandex/clickhouse-server:19.15
+    - PROM_IMAGE=prom/prometheus:master CLICKHOUSE_IMAGE=yandex/clickhouse-server:latest
 
 before_script:
   - docker --version
@@ -24,4 +41,4 @@ script:
   - make cover
 
 after_success:
-  - bash <(curl -s https://codecov.io/bash) -f cover.out -X fix -e PROM_IMAGE
+  - bash <(curl -s https://codecov.io/bash) -f cover.out -X fix

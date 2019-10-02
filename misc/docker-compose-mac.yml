@@ -22,7 +22,7 @@ services:
 
   clickhouse:
     container_name: clickhouse
-    image: yandex/clickhouse-server
+    image: ${CLICKHOUSE_IMAGE:-yandex/clickhouse-server:19.15}
     ports:
       - 127.0.0.1:8123:8123
       - 127.0.0.1:9000:9000

@@ -36,7 +36,7 @@ services:
     image: f1yegor/clickhouse-exporter
     ports:
       - 127.0.0.1:9116:9116
-    command: -scrape_uri=http://promhouse_clickhouse:8123/
+    command: -scrape_uri=http://host.docker.internal:8123/
 
   grafana:
     container_name: grafana

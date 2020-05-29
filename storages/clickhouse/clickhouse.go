@@ -80,14 +80,17 @@ func New(params *Params) (base.Storage, error) {
 	queries = append(queries, fmt.Sprintf(`CREATE DATABASE IF NOT EXISTS %s`, database))
 
 	queries = append(queries, fmt.Sprintf(`
-		CREATE TABLE IF NOT EXISTS %s.time_series (
+		CREATE TABLE IF NOT EXISTS %s.prom_series (
 			date Date,
 			fingerprint UInt64,
-			labels String
+			metric      LowCardinality(String),
+    		label       LowCardinality(String),
+			value		 String
 		)
 		ENGINE = ReplacingMergeTree
 			PARTITION BY date
-			ORDER BY fingerprint`, database))
+			ORDER BY (metric, label, fingerprint)
+			SETTINGS index_granularity = 8192`, database))
 
 	// change sampleRowSize is you change this table
 	queries = append(queries, fmt.Sprintf(`
@@ -449,21 +452,32 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) erro
 	// write new time series
 	if len(newTimeSeries) > 0 {
 		err := inTransaction(ctx, ch.db, func(tx *sql.Tx) error {
-			query := fmt.Sprintf(`INSERT INTO %s.time_series (date, fingerprint, labels) VALUES (?, ?, ?)`, ch.database)
+			query := fmt.Sprintf(`INSERT INTO %s.prom_series (date, fingerprint, metric, label, labels) VALUES (?, ?, ?, ?, ?)`, ch.database)
 			var stmt *sql.Stmt
 			var err error
 			if stmt, err = tx.PrepareContext(ctx, query); err != nil {
 				return errors.WithStack(err)
 			}
 
-			args := make([]interface{}, 3)
+			args := make([]interface{}, 5)
 			args[0] = model.Now().Time()
 			for _, f := range newTimeSeries {
-				args[1] = f
-				args[2] = marshalLabels(timeSeries[f], make([]byte, 0, 128))
-				// ch.l.Debugf("%s %v", query, args)
-				if _, err := stmt.ExecContext(ctx, args...); err != nil {
-					return errors.WithStack(err)
+				var metricName string
+				for i, t := range timeSeries[f] {
+					if i == 1 {
+						metricName = t.Value
+						continue
+					}
+					args[1] = f
+					args[2] = metricName
+					args[3] = t.Name
+					args[4] = t.Value
+
+
+
+					if _, err := stmt.ExecContext(ctx, args...); err != nil {
+						return errors.WithStack(err)
+					}
 				}
 			}
 

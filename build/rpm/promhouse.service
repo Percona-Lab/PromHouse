@@ -1,0 +1,20 @@
+[Unit]
+Description=Prom House
+Requires=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+Restart=always
+RestartSec=30
+ExecStartPre=/usr/bin/mkdir -p /mnt/disk/software/promhouse
+RuntimeDirectory=/mnt/disk/software/promhouse
+EnvironmentFile=/etc/sysconfig/promhouse.env
+ExecStart=/bin/sh -c 'exec /usr/bin/promhouse $PHARGS > /mnt/disk/software/promhouse/access.log 2> /mnt/disk/software/promhouse/error.log'
+LimitCORE=infinity
+LimitNOFILE=500000
+
+[Install]
+WantedBy=multi-user.target
